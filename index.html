@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
 canvas {
     border: 1px solid #d3d3d3;
@@ -9,26 +9,32 @@ canvas {
 }
 </style>
 </head>
-<body onload="startGame()">
-<script>
-
-function startGame() {
-    myGameArea.start();
-}
-
-var myGameArea = {
-    canvas : document.createElement("canvas"),
-    start : function() {
-        this.canvas.width = 480;
-        this.canvas.height = 270;
-        this.context = this.canvas.getContext("2d");
-        document.body.insertBefore(this.canvas, document.body.childNodes[0]);
-    }
-}
-
-</script>
-
-<p><strong>There is nothing to see here... Sorry.</strong></p>
-
+<body>
+<canvas id="myCanvas" width="1366" height="768">
 </body>
+<script>
+var canvas = document.getElementById("myCanvas");
+var ctx = canvas.getContext("2d");
+writeMousePos(canvas, "Mouse position: ");
+
+function writeMousePos(canvas, message) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'black';
+    ctx.fillText(message, 10, 18);
+}
+
+function getMousePos(canvas, e) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+}
+
+canvas.addEventListener('mousemove', function(e) {
+    var mousePos = getMousePos(canvas, e);
+    var message = 'Mouse position: ' + mousePos.x + ',' + mousePos.y;
+    writeMousePos(canvas, message);
+})
+</script>
 </html>
