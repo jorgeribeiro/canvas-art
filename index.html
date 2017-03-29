@@ -3,6 +3,10 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
+body {
+    font-family: Verdana,sans-serif;
+    font-size: 13px;
+}
 canvas {
     border: 1px solid #d3d3d3;
     background-color: #f1f1f1;
@@ -10,20 +14,21 @@ canvas {
 </style>
 </head>
 <body>
+<p id="mousePos">Mouse position: </p>
 <canvas id="myCanvas" width="1366" height="768">
 </body>
+
 <script>
 var canvas = document.getElementById("myCanvas");
 var ctx = canvas.getContext("2d");
-writeMousePos(canvas, "Mouse position: ");
+var startLine = true;
+writeMousePos("Mouse position: ");
 
-function writeMousePos(canvas, message) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'black';
-    ctx.fillText(message, 10, 18);
+function writeMousePos(message) {
+    document.getElementById("mousePos").innerHTML = message;
 }
 
-function getMousePos(canvas, e) {
+function getMousePos(e) {
     var rect = canvas.getBoundingClientRect();
     return {
         x: e.clientX - rect.left,
@@ -31,10 +36,26 @@ function getMousePos(canvas, e) {
     };
 }
 
+function drawLine(e) {
+    var mousePos = getMousePos(e);
+    if(startLine) {
+        ctx.beginPath();
+        ctx.moveTo(mousePos.x, mousePos.y);
+        startLine = false;
+    } else {
+        mousePos = getMousePos(e);
+        ctx.lineTo(mousePos.x, mousePos.y);
+        ctx.stroke();
+        startLine = true;
+    }
+}
+
 canvas.addEventListener('mousemove', function(e) {
-    var mousePos = getMousePos(canvas, e);
-    var message = 'Mouse position: ' + mousePos.x + ',' + mousePos.y;
-    writeMousePos(canvas, message);
+    var mousePos = getMousePos(e);
+    document.getElementById("mousePos").innerHTML = 'Mouse position: ' + mousePos.x + ',' + mousePos.y;
 })
+
+canvas.addEventListener('click', drawLine);
 </script>
+
 </html>
