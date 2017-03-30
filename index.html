@@ -13,49 +13,99 @@ canvas {
 }
 </style>
 </head>
-<body>
+<body onload="init()">
 <p id="mousePos">Mouse position: </p>
-<canvas id="myCanvas" width="1366" height="768">
+<p id="status">Status: ...</p>
+<canvas id="myCanvas" width="1280" height="550">
 </body>
 
 <script>
-var canvas = document.getElementById("myCanvas");
-var ctx = canvas.getContext("2d");
-var startLine = true;
-writeMousePos("Mouse position: ");
 
-function writeMousePos(message) {
-    document.getElementById("mousePos").innerHTML = message;
+function CanvasState(canvas) {
+    // Atributos
+    this.canvas = canvas;
+    this.width = canvas.width;
+    this.height = canvas.height;
+    this.ctx = canvas.getContext('2d');
+
+    this.valid = false;
+    this.shapes = [];  // Objetos criados na tela
+    this.dragging = false; // Flag para quando se está arrastando um objeto
+    this.selection = null; // Objeto selecionado
+    this.dragoffx = 0;
+    this.dragoffy = 0;
+    this.startline = true; // Usado para desenhar linhas
+
+    // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState numa variável
+    var myState = this;
+
+    canvas.addEventListener('mousemove', function(e) {
+        var mousePos = myState.getMousePos(e);
+        myState.writeMousePos('Mouse position: ' + mousePos.x + ',' + mousePos.y);
+    });
+
+    canvas.addEventListener('click', function(e) {
+        var mousePos = myState.getMousePos(e);
+        myState.drawLine(mousePos);
+    });
+
+    this.interval = 30;
+    setInterval(function() { /*/TODO/*/ }, myState.interval);
 }
 
-function getMousePos(e) {
-    var rect = canvas.getBoundingClientRect();
+// Prototype corresponde a adicionar um novo atributo ao "objeto" existente
+// Esse método limpa a tela para redesenhar o canvas em cada interval
+CanvasState.prototype.clear = function() {
+    this.ctx.clearRect(0, 0, this.width, this.height);
+} // NOT USED YET
+
+CanvasState.prototype.draw = function() {
+    if (!this.valid) {
+        var ctx = this.ctx;
+        var shapes = this.shapes;
+        this.clear();
+    
+        // Desenha os objetos
+        var l = shapes.length;
+            for (var i = 0; i < l; i++) {
+            var shape = shapes[i];
+            // Não redesenha os objetos tirados do canvas
+            if (shape.x > this.width || shape.y > this.height ||
+                shape.x + shape.w < 0 || shape.y + shape.h < 0) continue;
+            shapes[i].draw(ctx);
+        }
+        this.valid = true;
+    }
+} // NOT USED YET
+
+CanvasState.prototype.getMousePos = function(e) {
+    var rect = this.canvas.getBoundingClientRect();
     return {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
     };
 }
 
-function drawLine(e) {
-    var mousePos = getMousePos(e);
-    if(startLine) {
-        ctx.beginPath();
-        ctx.moveTo(mousePos.x, mousePos.y);
-        startLine = false;
+CanvasState.prototype.writeMousePos = function(message) {
+    document.getElementById("mousePos").innerHTML = message;
+}
+
+CanvasState.prototype.drawLine = function(mousePos) {
+    if(this.startline) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(mousePos.x, mousePos.y);
+        this.startline = false;
     } else {
-        mousePos = getMousePos(e);
-        ctx.lineTo(mousePos.x, mousePos.y);
-        ctx.stroke();
-        startLine = true;
+        this.ctx.lineTo(mousePos.x, mousePos.y);
+        this.ctx.stroke();
+        this.startline = true;
     }
 }
 
-canvas.addEventListener('mousemove', function(e) {
-    var mousePos = getMousePos(e);
-    document.getElementById("mousePos").innerHTML = 'Mouse position: ' + mousePos.x + ',' + mousePos.y;
-})
+function init() {
+    var s = new CanvasState(document.getElementById("myCanvas"));
+}
 
-canvas.addEventListener('click', drawLine);
 </script>
 
 </html>
