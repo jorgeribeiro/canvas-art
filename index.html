@@ -14,13 +14,41 @@ canvas {
 </style>
 </head>
 <body onload="init()">
-<p id="mousePos">Mouse position: </p>
-<p id="status">Status: ...</p>
+<p id="currMousePos">Mouse position on canvas: </p>
+<p id="status" hidden="true">Start position: </p> <!-- Para testes necessários -->
 <canvas id="myCanvas" width="1280" height="550">
 </body>
 
 <script>
 
+// Uma linha contém uma coordenada inicial (start) e uma coordenada final (end)
+function Line(start, end) {
+    this.start = start || 0;
+    this.end = end || 0;
+}
+
+
+// Um objeto é um vetor com n linhas
+function Object() {
+    this.lines = [];
+}
+
+// Desenha o objeto em um context
+Object.prototype.draw = function(ctx) {
+    // Desenha cada linha de um objeto
+    var l = this.lines.length;
+    for (var i = 0; i < l; i++) {
+        var line = this.lines[i];
+        ctx.beginPath();
+        ctx.moveTo(line.start.x, line.start.y);
+        ctx.lineTo(line.end.x, line.end.y);
+        ctx.stroke();
+    } 
+}
+
+// CanvasState toma conta do estado do canvas
+// Nele encontram-se os métodos para eventos do mouse, e também métodos de update no canvas, no caso de alguma movimentação ou transformação em algum objeto presente nele
+// Os objetos (linhas, polígonos e poligonais) são salvos na lista shapes[]
 function CanvasState(canvas) {
     // Atributos
     this.canvas = canvas;
@@ -29,31 +57,52 @@ function CanvasState(canvas) {
     this.ctx = canvas.getContext('2d');
 
     this.valid = false;
-    this.shapes = [];  // Objetos criados na tela
+    this.objects = [];  // Objetos criados na tela
     this.dragging = false; // Flag para quando se está arrastando um objeto
+    this.drawing = false; // Flag para quando se está desenhando um objeto
     this.selection = null; // Objeto selecionado
     this.dragoffx = 0;
     this.dragoffy = 0;
     this.startline = true; // Usado para desenhar linhas
+    this.startMousePos = 0, 0; // Salva o primeiro click do mouse ao desenhar. Não se usa 'this' para referenciar a esse atributo. Porque?
 
-    // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState numa variável
+    // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState em uma variável
     var myState = this;
 
     canvas.addEventListener('mousemove', function(e) {
-        var mousePos = myState.getMousePos(e);
-        myState.writeMousePos('Mouse position: ' + mousePos.x + ',' + mousePos.y);
+        var currMousePos = myState.getMousePos(e);
+        myState.writeMousePos("Mouse position on canvas: " + currMousePos.x + ',' + currMousePos.y);
+        if(myState.drawing) {
+            myState.drawLine(currMousePos);
+            myState.valid = false;
+        }
     });
 
     canvas.addEventListener('click', function(e) {
-        var mousePos = myState.getMousePos(e);
-        myState.drawLine(mousePos);
+        var currMousePos = myState.getMousePos(e);
+        if(myState.startline) { // Primeiro click
+            myState.startline = false; 
+            myState.drawing = true;
+            startMousePos = currMousePos;
+        } else {                // Segundo click
+            myState.startline = true; 
+            myState.drawing = false;
+            myState.addObject(new Line(startMousePos, currMousePos));
+        }
     });
 
-    this.interval = 30;
-    setInterval(function() { /*/TODO/*/ }, myState.interval);
+    this.interval = 10;
+    setInterval(function() { myState.draw(); }, myState.interval);
 }
 
 // Prototype corresponde a adicionar um novo atributo ao "objeto" existente
+CanvasState.prototype.addObject = function(line) {
+    var o = new Object();
+    o.lines.push(line);
+    this.objects.push(o);
+    this.valid = false;
+}
+
 // Esse método limpa a tela para redesenhar o canvas em cada interval
 CanvasState.prototype.clear = function() {
     this.ctx.clearRect(0, 0, this.width, this.height);
@@ -62,21 +111,24 @@ CanvasState.prototype.clear = function() {
 CanvasState.prototype.draw = function() {
     if (!this.valid) {
         var ctx = this.ctx;
-        var shapes = this.shapes;
+        var objects = this.objects;
         this.clear();
-    
+        
+        this.ctx.stroke();
         // Desenha os objetos
-        var l = shapes.length;
-            for (var i = 0; i < l; i++) {
-            var shape = shapes[i];
+        var l = objects.length;
+        for (var i = 0; i < l; i++) {
+            var object = objects[i];
+            /*
             // Não redesenha os objetos tirados do canvas
             if (shape.x > this.width || shape.y > this.height ||
                 shape.x + shape.w < 0 || shape.y + shape.h < 0) continue;
-            shapes[i].draw(ctx);
+            */
+            objects[i].draw(ctx);
         }
         this.valid = true;
     }
-} // NOT USED YET
+}
 
 CanvasState.prototype.getMousePos = function(e) {
     var rect = this.canvas.getBoundingClientRect();
@@ -87,19 +139,15 @@ CanvasState.prototype.getMousePos = function(e) {
 }
 
 CanvasState.prototype.writeMousePos = function(message) {
-    document.getElementById("mousePos").innerHTML = message;
+    document.getElementById("currMousePos").innerHTML = message;
+    //document.getElementById("status").innerHTML = "Start position: " + startMousePos.x + ',' + startMousePos.y;
 }
 
-CanvasState.prototype.drawLine = function(mousePos) {
-    if(this.startline) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(mousePos.x, mousePos.y);
-        this.startline = false;
-    } else {
-        this.ctx.lineTo(mousePos.x, mousePos.y);
-        this.ctx.stroke();
-        this.startline = true;
-    }
+CanvasState.prototype.drawLine = function(currMousePos) {
+    this.drawing = true;
+    this.ctx.beginPath();
+    this.ctx.moveTo(startMousePos.x, startMousePos.y);
+    this.ctx.lineTo(currMousePos.x, currMousePos.y);
 }
 
 function init() {
