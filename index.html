@@ -103,27 +103,24 @@ CanvasState.prototype.addObject = function(line) {
     this.valid = false;
 }
 
-// Esse método limpa a tela para redesenhar o canvas em cada interval
+// Limpa a tela para redesenhar o canvas em cada interval
 CanvasState.prototype.clear = function() {
     this.ctx.clearRect(0, 0, this.width, this.height);
-} // NOT USED YET
+}
 
+// Método chamado pelo INTERVAL
+// Limpa o canvas e redesenha todos os objetos presentes em objects[]
 CanvasState.prototype.draw = function() {
     if (!this.valid) {
         var ctx = this.ctx;
         var objects = this.objects;
         this.clear();
-        
-        this.ctx.stroke();
-        // Desenha os objetos
+        if(this.drawing) { this.ctx.stroke(); } // Evita que desenhe a mesma linha duas vezes
+
+        // Desenha todos os objetos
         var l = objects.length;
         for (var i = 0; i < l; i++) {
             var object = objects[i];
-            /*
-            // Não redesenha os objetos tirados do canvas
-            if (shape.x > this.width || shape.y > this.height ||
-                shape.x + shape.w < 0 || shape.y + shape.h < 0) continue;
-            */
             objects[i].draw(ctx);
         }
         this.valid = true;
@@ -140,7 +137,7 @@ CanvasState.prototype.getMousePos = function(e) {
 
 CanvasState.prototype.writeMousePos = function(message) {
     document.getElementById("currMousePos").innerHTML = message;
-    //document.getElementById("status").innerHTML = "Start position: " + startMousePos.x + ',' + startMousePos.y;
+    document.getElementById("status").innerHTML = "Start position: " + startMousePos.x + ',' + startMousePos.y;
 }
 
 CanvasState.prototype.drawLine = function(currMousePos) {
