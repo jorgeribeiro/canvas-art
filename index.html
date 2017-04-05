@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1" charset="utf-8"/>
 <style>
 body {
     font-family: Verdana,sans-serif;
@@ -15,7 +15,7 @@ canvas {
 </head>
 <body onload="init()">
 <p id="currMousePos">Mouse position on canvas: </p>
-<p id="status" hidden="true">Start position: </p> <!-- Para testes necessários -->
+<p id="status">Movable: </p> <!-- Para testes necessários -->
 <canvas id="myCanvas" width="1280" height="550">
 </body>
 
@@ -27,10 +27,34 @@ function Line(start, end) {
     this.end = end || 0;
 }
 
-
 // Um objeto é um vetor com n linhas
 function Object() {
     this.lines = [];
+}
+
+// Determina se a posição do mouse é válida sobre as linhas
+Object.prototype.contains = function(currMousePos) {
+    var l = this.lines.length;
+    for (var i = 0; i < l; i++) {
+        var line = this.lines[i];
+        var a = line.start.y - line.end.y;
+        var b = line.end.x - line.start.x;
+        var c = (line.start.x * line.end.y) - (line.end.x * line.start.y);
+        // Equação da reta: ax + by + c
+        var cross = (a * currMousePos.x) + (b * currMousePos.y) + c;
+        console.log("a = " + a + ", b = " + b + ", c = "+ c);
+        console.log("cross = " + cross + ", cross / c = " + Math.abs(cross / c));
+        // Tolerância para o mouse estar em posição válida
+        var tol = 0.1; 
+        if(cross == 0 || Math.abs(cross / c) < tol) {
+            if(Math.abs(line.end.x - line.start.x) >= Math.abs(line.end.y - line.start.y)) {
+                return (((line.end.x - line.start.x) > 0) ? (line.start.x <= currMousePos.x && currMousePos.x <= line.end.x) : (line.end.x <= currMousePos.x && currMousePos.x <= line.start.x));
+            } else {
+                return (((line.end.y - line.start.y) > 0) ? (line.start.y <= currMousePos.y && currMousePos.y <= line.end.y) : (line.end.y <= currMousePos.y && currMousePos.y <= line.start.y));
+            }
+        }
+        return false;
+    }
 }
 
 // Desenha o objeto em um context
@@ -71,11 +95,12 @@ function CanvasState(canvas) {
 
     canvas.addEventListener('mousemove', function(e) {
         var currMousePos = myState.getMousePos(e);
-        myState.writeMousePos("Mouse position on canvas: " + currMousePos.x + ',' + currMousePos.y);
         if(myState.drawing) {
             myState.drawLine(currMousePos);
             myState.valid = false;
         }
+        myState.writeMousePos("Mouse position on canvas: " + currMousePos.x + ',' + currMousePos.y);
+        myState.isMovable(currMousePos);
     });
 
     canvas.addEventListener('click', function(e) {
@@ -137,7 +162,6 @@ CanvasState.prototype.getMousePos = function(e) {
 
 CanvasState.prototype.writeMousePos = function(message) {
     document.getElementById("currMousePos").innerHTML = message;
-    document.getElementById("status").innerHTML = "Start position: " + startMousePos.x + ',' + startMousePos.y;
 }
 
 CanvasState.prototype.drawLine = function(currMousePos) {
@@ -145,6 +169,14 @@ CanvasState.prototype.drawLine = function(currMousePos) {
     this.ctx.beginPath();
     this.ctx.moveTo(startMousePos.x, startMousePos.y);
     this.ctx.lineTo(currMousePos.x, currMousePos.y);
+}
+
+CanvasState.prototype.isMovable = function(currMousePos) {
+    var l = this.objects.length;
+    for (var i = 0; i < l; i++) {
+        var object = this.objects[i];
+        document.getElementById("status").innerHTML = "Movable: " + object.contains(currMousePos);
+    }
 }
 
 function init() {
