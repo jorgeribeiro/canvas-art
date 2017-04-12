@@ -16,7 +16,7 @@ canvas {
 </head>
 <body onload="init()">
 <p id="currMousePos">Mouse position on canvas: </p>
-<p id="status">Movable: </p> <!-- Para testes necessários -->
+<p id="status" hidden="true">Status: </p> <!-- Para testes necessários -->
 <canvas id="myCanvas" width="1280" height="550">
 </body>
 
@@ -26,6 +26,7 @@ canvas {
 function Line(start, end) {
     this.start = start || {x: 0, y: 0};
     this.end = end || {x: 0, y: 0};
+    this.stroke = '#000000';
 }
 
 // Um objeto é um vetor com n linhas
@@ -33,7 +34,12 @@ function Object() {
     this.lines = [];
 }
 
-// Calcula código para pick de linha
+// Determina se a posição do mouse é válida sobre formas
+Object.prototype.contains = function(currMousePos) {
+    return this.pickLine(currMousePos); // Pick de linha
+}
+
+// Calcula código de 4 elementos para pick de linha
 Object.prototype.pickCode = function(x, y, xmin, xmax, ymin, ymax, cod) {
     cod[0] = x < xmin;
     cod[1] = x > xmax;
@@ -41,8 +47,8 @@ Object.prototype.pickCode = function(x, y, xmin, xmax, ymin, ymax, cod) {
     cod[3] = y > ymax;
 }
 
-// Determina se a posição do mouse é válida sobre as linhas
-Object.prototype.contains = function(currMousePos) {
+// Determina se a posição do mouse é válida sobre linhas
+Object.prototype.pickLine = function(currMousePos) {
     var cod0 = [], cod1 = [];
     var x0, y0, x1, y1;
     var xmin, xmax, ymin, ymax;
@@ -78,32 +84,6 @@ Object.prototype.contains = function(currMousePos) {
         } while(true);
     }
     return false;
-
-    /**
-    var l = this.lines.length;
-    for(var i = 0; i < l; i++) {
-        var line = this.lines[i];
-        var a = line.start.y - line.end.y;
-        var b = line.end.x - line.start.x;
-        var c = (line.start.x * line.end.y) - (line.end.x * line.start.y);
-        // Equação da reta: ax + by + c
-        var cross = (a * currMousePos.x) + (b * currMousePos.y) + c;
-        console.log("a = " + a + ", b = " + b + ", c = "+ c);
-        console.log("cross = " + cross + ", (cross / c) = " + Math.abs(cross / c));
-        // Tolerância para o mouse estar em posição válida
-        var tol = 0.1;
-        if(c > 0) tol = 0.02;
-
-        if(cross == 0 || Math.abs(cross / c) < tol) {
-            if(Math.abs(line.end.x - line.start.x) >= Math.abs(line.end.y - line.start.y)) {
-                return (((line.end.x - line.start.x) > 0) ? (line.start.x <= currMousePos.x && currMousePos.x <= line.end.x) : (line.end.x <= currMousePos.x && currMousePos.x <= line.start.x));
-            } else {
-                return (((line.end.y - line.start.y) > 0) ? (line.start.y <= currMousePos.y && currMousePos.y <= line.end.y) : (line.end.y <= currMousePos.y && currMousePos.y <= line.start.y));
-            }
-        }
-        return false;
-    }
-    **/
 }
 
 // Desenha o objeto em um context
@@ -115,8 +95,9 @@ Object.prototype.draw = function(ctx) {
         ctx.beginPath();
         ctx.moveTo(line.start.x, line.start.y);
         ctx.lineTo(line.end.x, line.end.y);
+        ctx.strokeStyle = line.stroke;
         ctx.stroke();
-    } 
+    }
 }
 
 // CanvasState toma conta do estado do canvas
@@ -137,7 +118,7 @@ function CanvasState(canvas) {
     this.dragoffx = 0;
     this.dragoffy = 0;
     this.startline = true; // Usado para desenhar linhas
-    this.startMousePos = {x: 0, y: 0}; // Salva o primeiro click do mouse ao desenhar
+    this.prevMousePos = {x: 0, y: 0}; // Salva o primeiro click do mouse ao desenhar
     this.mouseDownFired = false;
 
     // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState em uma variável
@@ -149,12 +130,10 @@ function CanvasState(canvas) {
             myState.drawLine(currMousePos);
             myState.valid = false;
         }
-
-        if(myState.dragging) {
+        else if(myState.dragging) {
             myState.dragLine(currMousePos);
             myState.valid = false;
         }
-
         myState.writeMousePos("Mouse position on canvas: " + currMousePos.x + ',' + currMousePos.y);
         myState.isMovable(currMousePos);
     }, true);
@@ -166,16 +145,20 @@ function CanvasState(canvas) {
             myState.mouseDownFired = false;
             return;
         }
-
         var currMousePos = myState.getMousePos(e);
         if(myState.startline) { // Primeiro click
             myState.startline = false; 
             myState.drawing = true;
-            myState.startMousePos = currMousePos;
+            myState.prevMousePos = currMousePos;
         } else {                // Segundo click
             myState.startline = true; 
             myState.drawing = false;
-            myState.addObject(new Line(myState.startMousePos, currMousePos));
+            myState.addObject(new Line(myState.prevMousePos, currMousePos));
+        }
+
+        if(myState.selection) {
+            myState.selection = null;
+            myState.valid = false;
         }
     }, true);
 
@@ -189,7 +172,7 @@ function CanvasState(canvas) {
         for(var i = l - 1; i >= 0; i--) {
             if(objects[i].contains(currMousePos)) {
                 var mySel = objects[i].lines[0]; // TODO: por enquanto só move linhas
-                myState.startMousePos = currMousePos;
+                myState.prevMousePos = currMousePos;
                 myState.dragging = true;
                 myState.selection = mySel;
                 myState.valid = false;
@@ -236,7 +219,7 @@ CanvasState.prototype.draw = function() {
         var ctx = this.ctx;
         var objects = this.objects;
         this.clear();
-        if(this.drawing) { this.ctx.stroke(); } // Evita que desenhe a mesma linha duas vezes
+        if(this.drawing) { ctx.stroke(); } // Evita que desenhe a mesma linha duas vezes
 
         // Desenha todos os objetos
         var l = objects.length;
@@ -262,21 +245,20 @@ CanvasState.prototype.writeMousePos = function(message) {
 }
 
 CanvasState.prototype.drawLine = function(currMousePos) {
-    this.drawing = true;
     this.ctx.beginPath();
-    this.ctx.moveTo(this.startMousePos.x, this.startMousePos.y);
+    this.ctx.moveTo(this.prevMousePos.x, this.prevMousePos.y);
     this.ctx.lineTo(currMousePos.x, currMousePos.y);
 }
 
 CanvasState.prototype.dragLine = function(currMousePos) {
-    var dragx = currMousePos.x - this.startMousePos.x;
-    var dragy = currMousePos.y - this.startMousePos.y;
+    var dragx = currMousePos.x - this.prevMousePos.x;
+    var dragy = currMousePos.y - this.prevMousePos.y;
     var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
     newStart.x = this.selection.start.x + dragx; newStart.y = this.selection.start.y + dragy;
     newEnd.x = this.selection.end.x + dragx; newEnd.y = this.selection.end.y + dragy;
     this.selection.start = newStart;
     this.selection.end = newEnd;
-    this.startMousePos = currMousePos;
+    this.prevMousePos = currMousePos;
 }
 
 CanvasState.prototype.isMovable = function(currMousePos) {
@@ -284,7 +266,7 @@ CanvasState.prototype.isMovable = function(currMousePos) {
     for(var i = 0; i < l; i++) {
         var object = this.objects[i];
         var movable = object.contains(currMousePos);
-        document.getElementById("status").innerHTML = "Movable: " + movable;
+        //document.getElementById("status").innerHTML = "Movable: " + movable;
         if(movable) break; // Se estou sobre uma reta válida, não precisa testar as outras
     }
 }
