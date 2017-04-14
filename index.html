@@ -34,7 +34,6 @@ canvas {
 </head>
 <body>
 <p id="currMousePos">Mouse position on canvas: </p>
-<<<<<<< HEAD
 <p id="status" hidden="true">Button: </p> <!-- Para testes necessários -->
 <div class="btn-group">
   <button id="pointbt" class="button" onclick="s.setButton(this.id)">Point</button>
@@ -48,9 +47,6 @@ canvas {
   <button id="removebt" class="button" onclick="s.setButton(this.id)">Remove</button>
 </div>
 <br><br><br><br>
-=======
-<p id="status" hidden="true">Status: </p> <!-- Para testes necessários -->
->>>>>>> origin/master
 <canvas id="myCanvas" width="1280" height="550">
 </body>
 
@@ -152,12 +148,8 @@ function CanvasState(canvas) {
     this.selection = null; // Objeto selecionado
     this.startline = true; // Usado para desenhar linhas
     this.prevMousePos = {x: 0, y: 0}; // Salva o primeiro click do mouse ao desenhar
-<<<<<<< HEAD
     this.mouseDownFired = false; // Usado para mover sem desenhar
     this.button = 0; // Botão selecionado
-=======
-    this.mouseDownFired = false;
->>>>>>> origin/master
 
     // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState em uma variável
     var myState = this;
@@ -183,7 +175,6 @@ function CanvasState(canvas) {
             myState.mouseDownFired = false;
             return;
         }
-<<<<<<< HEAD
         if(myState.button == 2) {
             var currMousePos = myState.getMousePos(e);
             if(myState.startline) { // Primeiro click
@@ -195,17 +186,6 @@ function CanvasState(canvas) {
                 myState.drawing = false;
                 myState.addObject(new Line(myState.prevMousePos, currMousePos));
             }
-=======
-        var currMousePos = myState.getMousePos(e);
-        if(myState.startline) { // Primeiro click
-            myState.startline = false; 
-            myState.drawing = true;
-            myState.prevMousePos = currMousePos;
-        } else {                // Segundo click
-            myState.startline = true; 
-            myState.drawing = false;
-            myState.addObject(new Line(myState.prevMousePos, currMousePos));
->>>>>>> origin/master
         }
 
         if(myState.selection) {
@@ -217,7 +197,6 @@ function CanvasState(canvas) {
     canvas.addEventListener('mousedown', function(e) {
         // Previne disparar um 'click'
         myState.mouseDownFired = true;
-<<<<<<< HEAD
         if(myState.button == 5) {
             var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
@@ -231,20 +210,6 @@ function CanvasState(canvas) {
                     myState.valid = false;
                     return;
                 }
-=======
-
-        var currMousePos = myState.getMousePos(e);
-        var objects = myState.objects;
-        var l = objects.length;
-        for(var i = l - 1; i >= 0; i--) {
-            if(objects[i].contains(currMousePos)) {
-                var mySel = objects[i].lines[0]; // TODO: por enquanto só move linhas
-                myState.prevMousePos = currMousePos;
-                myState.dragging = true;
-                myState.selection = mySel;
-                myState.valid = false;
-                return;
->>>>>>> origin/master
             }
         }
         if(myState.selection) {
@@ -286,11 +251,7 @@ CanvasState.prototype.draw = function() {
         var ctx = this.ctx;
         var objects = this.objects;
         this.clear();
-<<<<<<< HEAD
         if(this.drawing) ctx.stroke(); // Evita que desenhe a mesma linha duas vezes
-=======
-        if(this.drawing) { ctx.stroke(); } // Evita que desenhe a mesma linha duas vezes
->>>>>>> origin/master
 
         // Desenha todos os objetos
         var l = objects.length;
@@ -337,10 +298,6 @@ CanvasState.prototype.isMovable = function(currMousePos) {
     for(var i = 0; i < l; i++) {
         var object = this.objects[i];
         var movable = object.contains(currMousePos);
-<<<<<<< HEAD
-=======
-        //document.getElementById("status").innerHTML = "Movable: " + movable;
->>>>>>> origin/master
         if(movable) break; // Se estou sobre uma reta válida, não precisa testar as outras
     }
 }
