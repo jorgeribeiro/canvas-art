@@ -34,7 +34,7 @@ canvas {
 </head>
 <body>
 <p id="currMousePos">Mouse position on canvas: </p>
-<p id="status" hidden="true">Button: </p> <!-- Para testes necessários -->
+<p id="status" hidden="true">Status: </p> <!-- Para testes necessários -->
 <div class="btn-group">
   <button id="pointbt" class="button" onclick="s.setButton(this.id)">Point</button>
   <button id="linebt" class="button" onclick="s.setButton(this.id)">Line</button>
@@ -52,22 +52,56 @@ canvas {
 
 <script>
 var s = new CanvasState(document.getElementById("myCanvas"));
+var shapeType = {
+    POINT: 1,
+    LINE: 2,
+    POLYGON: 3,
+};
+
+// Um ponto contém a sua coordenada x, y
+function Point(x, y) {
+    this.x = x || 0;
+    this.y = y || 0;
+    this.w = this.h = 4;
+    this.fill = '#000000';
+    this.shapeType = shapeType.POINT;
+}
+
 // Uma linha contém uma coordenada inicial (start) e uma coordenada final (end)
 function Line(start, end) {
     this.start = start || {x: 0, y: 0};
     this.end = end || {x: 0, y: 0};
     this.stroke = '#000000';
+    this.shapeType = shapeType.LINE;
 }
 
-// Um objeto é um vetor com n linhas
-function Object(polygon) {
-    this.lines = [];
-    this.polygon = polygon || false;
+function Polygon(lines) {
+    this.lines = lines;
+    // TOOD
+    this.shapeType = shapeType.POLYGON;
 }
 
-// Determina se a posição do mouse é válida sobre formas
+// Um objeto é um vetor com n formas
+// Podem ser um ponto, uma linha ou um polígono
+function Object(shape) {
+    this.shape = shape;
+    this.shapeType = shape.shapeType;
+}
+
+// Determina se a posição do mouse é válida sobre as formas
 Object.prototype.contains = function(currMousePos) {
-    return this.pickLine(currMousePos); // Pick de linha
+    if(this.shapeType == shapeType.POINT) {
+        return this.pickPoint(currMousePos);
+    } else if(this.shapeType == shapeType.LINE) {
+        return this.pickLine(currMousePos);
+    } else if(this.shapeType == shapeType.POLYGON){
+        return this.pickPolygon(currMousePos);
+    } else return false;
+}
+
+Object.prototype.pickPoint = function(currMousePos) {
+    return (this.shape.x <= currMousePos.x) && (this.shape.x + this.shape.w >= currMousePos.x) &&
+           (this.shape.y <= currMousePos.y) && (this.shape.y + this.shape.h >= currMousePos.y)
 }
 
 // Calcula código de 4 elementos para pick de linha
@@ -91,43 +125,48 @@ Object.prototype.pickLine = function(currMousePos) {
     ymin = currMousePos.y - TOL;
     ymax = currMousePos.y + TOL;
 
-    // Testa cada reta simples
-    var l = this.lines.length;
-    for(var i = 0; i < l; i++) {
-        var line = this.lines[i];
-        x0 = line.start.x;
-        y0 = line.start.y;
-        x1 = line.end.x;
-        y1 = line.end.y;
+    // Testa a reta
+    var line = this.shape;
+    x0 = line.start.x;
+    y0 = line.start.y;
+    x1 = line.end.x;
+    y1 = line.end.y;
+    this.pickCode(x1, y1, xmin, xmax, ymin, ymax, cod1);
+    do {
+        this.pickCode(x0, y0, xmin, xmax, ymin, ymax, cod0);
+        for(var j = 0; j < 4; j++) {
+            if(cod0[j] && cod1[j]) break;
+        }
+        if(j != 4) break;
+        if(cod0[0]) y0 += (xmin - x0) * (y1 - y0) / (x1 - x0), x0 = xmin;
+        else if(cod0[1]) y0 += (xmax - x0) * (y1 - y0) / (x1 - x0), x0 = xmax;
+        else if(cod0[2]) x0 += (ymin - y0) * (x1 - x0) / (y1 - y0), y0 = ymin;
+        else if(cod0[3]) x0 += (ymax - y0) * (x1 - x0) / (y1 - y0), y0 = ymax;
+           else return true;
+    } while(true);
+    return false;
+}
 
-        this.pickCode(x1, y1, xmin, xmax, ymin, ymax, cod1);
-        do {
-            this.pickCode(x0, y0, xmin, xmax, ymin, ymax, cod0);
-            for(var j = 0; j < 4; j++) {
-                if(cod0[j] && cod1[j]) break;
-            }
-            if(j != 4) break;
-            if(cod0[0]) y0 += (xmin - x0) * (y1 - y0) / (x1 - x0), x0 = xmin;
-            else if(cod0[1]) y0 += (xmax - x0) * (y1 - y0) / (x1 - x0), x0 = xmax;
-            else if(cod0[2]) x0 += (ymin - y0) * (x1 - x0) / (y1 - y0), y0 = ymin;
-            else if(cod0[3]) x0 += (ymax - y0) * (x1 - x0) / (y1 - y0), y0 = ymax;
-            else return true;
-        } while(true);
-    }
+Object.prototype.pickPolygon = function(currMousePos) {
+    // TODO
     return false;
 }
 
 // Desenha o objeto em um context
 Object.prototype.draw = function(ctx) {
     // Desenha cada linha de um objeto
-    var l = this.lines.length;
-    for(var i = 0; i < l; i++) {
-        var line = this.lines[i];
+    var shape = this.shape;
+    if(this.shapeType == shapeType.POINT) {
+        ctx.fillStyle = shape.fill;
+        ctx.fillRect(shape.x, shape.y, shape.w, shape.h);
+    } else if(this.shapeType == shapeType.LINE) {
         ctx.beginPath();
-        ctx.moveTo(line.start.x, line.start.y);
-        ctx.lineTo(line.end.x, line.end.y);
-        ctx.strokeStyle = line.stroke;
+        ctx.moveTo(shape.start.x, shape.start.y);
+        ctx.lineTo(shape.end.x, shape.end.y);
+        ctx.strokeStyle = shape.stroke;
         ctx.stroke();
+    } else if(this.shapeType == shapeType.POLYGON){
+        // TODO
     }
 }
 
@@ -161,11 +200,10 @@ function CanvasState(canvas) {
             myState.valid = false;
         }
         else if(myState.dragging) {
-            myState.dragLine(currMousePos);
+            myState.dragShape(currMousePos);
             myState.valid = false;
         }
         myState.writeMousePos("Mouse position on canvas: " + currMousePos.x + ',' + currMousePos.y);
-        myState.isMovable(currMousePos);
     }, true);
 
 
@@ -175,8 +213,10 @@ function CanvasState(canvas) {
             myState.mouseDownFired = false;
             return;
         }
-        if(myState.button == 2) {
-            var currMousePos = myState.getMousePos(e);
+        var currMousePos = myState.getMousePos(e);
+        if(myState.button == 1) {
+            myState.addObject(new Point(currMousePos.x - 2, currMousePos.y - 2));
+        } else if(myState.button == 2) {
             if(myState.startline) { // Primeiro click
                 myState.startline = false; 
                 myState.drawing = true;
@@ -203,7 +243,7 @@ function CanvasState(canvas) {
             var l = objects.length;
             for(var i = l - 1; i >= 0; i--) {
                 if(objects[i].contains(currMousePos)) {
-                    var mySel = objects[i].lines[0]; // TODO: por enquanto só move linhas
+                    var mySel = objects[i].shape;
                     myState.prevMousePos = currMousePos;
                     myState.dragging = true;
                     myState.selection = mySel;
@@ -231,10 +271,9 @@ function CanvasState(canvas) {
     setInterval(function() { myState.draw(); }, myState.interval);
 }
 
-// Prototype corresponde a adicionar um novo atributo ao "objeto" existente
-CanvasState.prototype.addObject = function(line) {
-    var o = new Object();
-    o.lines.push(line);
+// Adiciona um objeto à lista de objetos do canvas
+CanvasState.prototype.addObject = function(shape) {
+    var o = new Object(shape);
     this.objects.push(o);
     this.valid = false;
 }
@@ -282,24 +321,22 @@ CanvasState.prototype.drawLine = function(currMousePos) {
     this.ctx.lineTo(currMousePos.x, currMousePos.y);
 }
 
-CanvasState.prototype.dragLine = function(currMousePos) {
+CanvasState.prototype.dragShape = function(currMousePos) {
     var dragx = currMousePos.x - this.prevMousePos.x;
     var dragy = currMousePos.y - this.prevMousePos.y;
-    var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
-    newStart.x = this.selection.start.x + dragx; newStart.y = this.selection.start.y + dragy;
-    newEnd.x = this.selection.end.x + dragx; newEnd.y = this.selection.end.y + dragy;
-    this.selection.start = newStart;
-    this.selection.end = newEnd;
-    this.prevMousePos = currMousePos;
-}
-
-CanvasState.prototype.isMovable = function(currMousePos) {
-    var l = this.objects.length;
-    for(var i = 0; i < l; i++) {
-        var object = this.objects[i];
-        var movable = object.contains(currMousePos);
-        if(movable) break; // Se estou sobre uma reta válida, não precisa testar as outras
+    if(this.selection.shapeType == shapeType.POINT) {
+        this.selection.x = currMousePos.x + dragx;
+        this.selection.y = currMousePos.y + dragy;
+    } else if(this.selection.shapeType == shapeType.LINE) {
+        var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
+        newStart.x = this.selection.start.x + dragx; newStart.y = this.selection.start.y + dragy;
+        newEnd.x = this.selection.end.x + dragx; newEnd.y = this.selection.end.y + dragy;
+        this.selection.start = newStart;
+        this.selection.end = newEnd;
+    } else if(this.selection.shapeType == shapeType.POLYGON) {
+        // TODO
     }
+    this.prevMousePos = currMousePos;
 }
 
 CanvasState.prototype.setButton = function(id) {
@@ -315,6 +352,17 @@ CanvasState.prototype.setButton = function(id) {
         case "removebt"  : this.button = 9; break;
         default          : this.button = 0;
     }
+}
+
+// Método de auxílio
+CanvasState.prototype.isMovable = function(currMousePos) {
+    var l = this.objects.length;
+    for(var i = 0; i < l; i++) {
+        var object = this.objects[i];
+        var movable = object.contains(currMousePos);
+        if(movable) break;
+    }
+    document.getElementById("status").innerHTML = "Status: " + movable;
 }
 
 </script>
