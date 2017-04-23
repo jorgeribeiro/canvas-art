@@ -62,7 +62,7 @@ var shapeType = {
 function Point(x, y) {
     this.x = x || 0;
     this.y = y || 0;
-    this.w = this.h = 4;
+    this.w = this.h = 6;
     this.fill = '#000000';
     this.shapeType = shapeType.POINT;
 }
@@ -75,10 +75,15 @@ function Line(start, end) {
     this.shapeType = shapeType.LINE;
 }
 
-function Polygon(lines) {
-    this.lines = lines;
-    // TOOD
+function Polygon() {
+    this.lines = [];
+    this.stroke = '#000000';
     this.shapeType = shapeType.POLYGON;
+}
+
+Polygon.prototype.getLinesLenght = function() {
+    var l = this.lines.length;
+    return l;
 }
 
 // Um objeto é um vetor com n formas
@@ -99,6 +104,7 @@ Object.prototype.contains = function(currMousePos) {
     } else return false;
 }
 
+// Determina se a posição do mouse é válida sobre pontos
 Object.prototype.pickPoint = function(currMousePos) {
     return (this.shape.x <= currMousePos.x) && (this.shape.x + this.shape.w >= currMousePos.x) &&
            (this.shape.y <= currMousePos.y) && (this.shape.y + this.shape.h >= currMousePos.y)
@@ -147,8 +153,9 @@ Object.prototype.pickLine = function(currMousePos) {
     return false;
 }
 
+// Determina se a posição do mouse é válida dentro de um polígono
 Object.prototype.pickPolygon = function(currMousePos) {
-    // TODO
+    var ni = 0;
     return false;
 }
 
@@ -166,7 +173,15 @@ Object.prototype.draw = function(ctx) {
         ctx.strokeStyle = shape.stroke;
         ctx.stroke();
     } else if(this.shapeType == shapeType.POLYGON){
-        // TODO
+        var l = shape.lines.length;
+        for(var i = 0; i < l; i++) {
+            var line = shape.lines[i];
+            ctx.beginPath();
+            ctx.moveTo(line.start.x, line.start.y);
+            ctx.lineTo(line.end.x, line.end.y);
+            ctx.strokeStyle = shape.stroke;
+            ctx.stroke();
+        }
     }
 }
 
@@ -189,6 +204,7 @@ function CanvasState(canvas) {
     this.prevMousePos = {x: 0, y: 0}; // Salva o primeiro click do mouse ao desenhar
     this.mouseDownFired = false; // Usado para mover sem desenhar
     this.button = 0; // Botão selecionado
+    this.newPolygon = null; // Polígono a ser adicionado
 
     // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState em uma variável
     var myState = this;
@@ -196,7 +212,11 @@ function CanvasState(canvas) {
     canvas.addEventListener('mousemove', function(e) {
         var currMousePos = myState.getMousePos(e);
         if(myState.drawing) {
-            myState.drawLine(currMousePos);
+            if(myState.button == 2) {
+                myState.drawLine(currMousePos);
+            } else if(myState.button == 3) {
+                myState.drawPolygon(currMousePos);
+            }
             myState.valid = false;
         }
         else if(myState.dragging) {
@@ -215,7 +235,7 @@ function CanvasState(canvas) {
         }
         var currMousePos = myState.getMousePos(e);
         if(myState.button == 1) {
-            myState.addObject(new Point(currMousePos.x - 2, currMousePos.y - 2));
+            myState.addObject(new Point(currMousePos.x - 3, currMousePos.y - 3));
         } else if(myState.button == 2) {
             if(myState.startline) { // Primeiro click
                 myState.startline = false; 
@@ -226,6 +246,19 @@ function CanvasState(canvas) {
                 myState.drawing = false;
                 myState.addObject(new Line(myState.prevMousePos, currMousePos));
             }
+        } else if(myState.button == 3) {
+            if(myState.startline) {
+                myState.newPolygon = new Polygon();
+                myState.newPolygon.lines.push(new Line(currMousePos, currMousePos));
+                myState.startline = false;
+                myState.drawing = true;
+                myState.prevMousePos = currMousePos;
+                myState.addObject(myState.newPolygon);
+            } else {
+                var polygon = myState.objects[myState.getObjectsLenght() - 1].shape;
+                polygon.lines.push(new Line(myState.prevMousePos, currMousePos));
+                myState.prevMousePos = currMousePos;
+            }
         }
 
         if(myState.selection) {
@@ -233,6 +266,26 @@ function CanvasState(canvas) {
             myState.valid = false;
         }
     }, true);
+
+    canvas.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        // Finaliza o polígono
+        if(myState.newPolygon != null) {
+            var polygon = myState.objects[myState.getObjectsLenght() - 1].shape;
+            var l = polygon.lines.length;
+            // Caso não seja fechado um polígono, remove-o da lista de objetos
+            if(l <= 2) {
+                myState.removeObject();
+                myState.resetState();
+                return false;
+            }
+            var lineStart = polygon.lines[0];
+            var lineEnd = polygon.lines[l-1];
+            polygon.lines.push(new Line(lineEnd.end, lineStart.start));
+            myState.resetState();
+        }
+        return false;
+    });
 
     canvas.addEventListener('mousedown', function(e) {
         // Previne disparar um 'click'
@@ -256,7 +309,6 @@ function CanvasState(canvas) {
             myState.selection = null;
             myState.valid = false;
         }
-
         // Permite disparar um 'click'
         myState.mouseDownFired = false;
     });
@@ -278,6 +330,10 @@ CanvasState.prototype.addObject = function(shape) {
     this.valid = false;
 }
 
+CanvasState.prototype.removeObject = function() {
+    this.objects.pop();
+}
+
 // Limpa a tela para redesenhar o canvas em cada interval
 CanvasState.prototype.clear = function() {
     this.ctx.clearRect(0, 0, this.width, this.height);
@@ -288,15 +344,16 @@ CanvasState.prototype.clear = function() {
 CanvasState.prototype.draw = function() {
     if(!this.valid) {
         var ctx = this.ctx;
-        var objects = this.objects;
+        //var objects = this.objects;
         this.clear();
         if(this.drawing) ctx.stroke(); // Evita que desenhe a mesma linha duas vezes
 
         // Desenha todos os objetos
-        var l = objects.length;
+        //var l = this.objects.length;
+        var l = this.getObjectsLenght();
         for(var i = 0; i < l; i++) {
-            var object = objects[i];
-            objects[i].draw(ctx);
+            var object = this.objects[i];
+            this.objects[i].draw(ctx);
         }
 
         this.valid = true;
@@ -321,6 +378,15 @@ CanvasState.prototype.drawLine = function(currMousePos) {
     this.ctx.lineTo(currMousePos.x, currMousePos.y);
 }
 
+CanvasState.prototype.drawPolygon = function(currMousePos) {
+    var currPolygon = this.objects[this.getObjectsLenght() - 1].shape;
+    var start = currPolygon.lines[0].start;
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.prevMousePos.x, this.prevMousePos.y);
+    this.ctx.lineTo(currMousePos.x, currMousePos.y);
+    this.ctx.lineTo(start.x, start.y);
+}
+
 CanvasState.prototype.dragShape = function(currMousePos) {
     var dragx = currMousePos.x - this.prevMousePos.x;
     var dragy = currMousePos.y - this.prevMousePos.y;
@@ -342,8 +408,8 @@ CanvasState.prototype.dragShape = function(currMousePos) {
 CanvasState.prototype.setButton = function(id) {
     switch(id) {
         case "pointbt"   : this.button = 1; break;
-        case "linebt"    : this.button = 2; break;
-        case "polygonbt" : this.button = 3; break;
+        case "linebt"    : this.button = 2; this.resetState(); break;
+        case "polygonbt" : this.button = 3; this.resetState(); break;
         case "bezierbt"  : this.button = 4; break;
         case "movebt"    : this.button = 5; break;
         case "rotatebt"  : this.button = 6; break;
@@ -352,6 +418,13 @@ CanvasState.prototype.setButton = function(id) {
         case "removebt"  : this.button = 9; break;
         default          : this.button = 0;
     }
+}
+
+CanvasState.prototype.resetState = function() {
+    this.newPolygon = null;
+    this.startline = true;
+    this.drawing = false;
+    this.valid = false;
 }
 
 // Método de auxílio
@@ -363,6 +436,11 @@ CanvasState.prototype.isMovable = function(currMousePos) {
         if(movable) break;
     }
     document.getElementById("status").innerHTML = "Status: " + movable;
+}
+
+CanvasState.prototype.getObjectsLenght = function() {
+    var l = this.objects.length;
+    return l;
 }
 
 </script>
