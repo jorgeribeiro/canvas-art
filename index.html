@@ -34,7 +34,7 @@ canvas {
 </head>
 <body>
 <p id="currMousePos">Mouse position on canvas: </p>
-<p id="status">Status: </p> <!-- Para testes necessários -->
+<p id="status" hidden="true">Status: </p> <!-- Para testes necessários -->
 <div class="btn-group">
   <button id="pointbt" class="button" onclick="s.setButton(this.id)">Point</button>
   <button id="linebt" class="button" onclick="s.setButton(this.id)">Line</button>
@@ -162,13 +162,12 @@ Object.prototype.pickPolygon = function(currMousePos) {
     var lines = polygon.lines;
 
     for(var i = 0; i < l; i++) {
-        let p1 = lines[i];
-        let p2 = lines[fst];
+        let p1 = lines[i].start; // Primeiro vértice
+        let p2 = lines[fst].start; // Último vértice
         if(!(p1.y == p2.y) && // Descarta horizontais
            !((p1.y > currMousePos.y) && (p2.y > currMousePos.y)) && // Descarta retas acima
            !((p1.y < currMousePos.y) && (p2.y < currMousePos.y)) && // Descarta retas abaixo
            !((p1.x < currMousePos.x) && (p2.x < currMousePos.x))) { // Descartas retas a esquerda
-            console.log("I am here 1");
             if(p1.y == currMousePos.y) { // Primeiro ponto na mesma cota
                 if((p1.x > currMousePos.x) && (p2.y > currMousePos.y)) ni++; // A direita e acima do ponto
             } else {
@@ -256,7 +255,6 @@ function CanvasState(canvas) {
             myState.valid = false;
         }
         myState.writeMousePos("Mouse position on canvas: " + currMousePos.x + ',' + currMousePos.y);
-        myState.isMovable(currMousePos);
     }, true);
 
 
