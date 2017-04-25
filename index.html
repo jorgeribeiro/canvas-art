@@ -424,7 +424,15 @@ CanvasState.prototype.dragShape = function(currMousePos) {
         this.selection.start = newStart;
         this.selection.end = newEnd;
     } else if(this.selection.shapeType == shapeType.POLYGON) {
-        // TODO
+        var l = this.selection.lines.length;
+        for(var i = 0; i < l; i++) {
+            var line = this.selection.lines[i];
+            var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
+            newStart.x = line.start.x + dragx; newStart.y = line.start.y + dragy;
+            newEnd.x = line.end.x + dragx; newEnd.y = line.end.y + dragy;
+            line.start = newStart;
+            line.end = newEnd;
+        }
     }
     this.prevMousePos = currMousePos;
 }
