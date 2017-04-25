@@ -34,7 +34,7 @@ canvas {
 </head>
 <body>
 <p id="currMousePos">Mouse position on canvas: </p>
-<p id="status" hidden="true">Status: </p> <!-- Para testes necessários -->
+<p id="status">Status: </p> <!-- Para testes necessários -->
 <div class="btn-group">
   <button id="pointbt" class="button" onclick="s.setButton(this.id)">Point</button>
   <button id="linebt" class="button" onclick="s.setButton(this.id)">Line</button>
@@ -155,8 +155,40 @@ Object.prototype.pickLine = function(currMousePos) {
 
 // Determina se a posição do mouse é válida dentro de um polígono
 Object.prototype.pickPolygon = function(currMousePos) {
-    var ni = 0;
-    return false;
+    var polygon = this.shape;
+    var l = polygon.getLinesLenght();
+    var ni = 0; // Número de interseções
+    var fst = l - 1; // Última aresta
+    var lines = polygon.lines;
+
+    for(var i = 0; i < l; i++) {
+        let p1 = lines[i];
+        let p2 = lines[fst];
+        if(!(p1.y == p2.y) && // Descarta horizontais
+           !((p1.y > currMousePos.y) && (p2.y > currMousePos.y)) && // Descarta retas acima
+           !((p1.y < currMousePos.y) && (p2.y < currMousePos.y)) && // Descarta retas abaixo
+           !((p1.x < currMousePos.x) && (p2.x < currMousePos.x))) { // Descartas retas a esquerda
+            console.log("I am here 1");
+            if(p1.y == currMousePos.y) { // Primeiro ponto na mesma cota
+                if((p1.x > currMousePos.x) && (p2.y > currMousePos.y)) ni++; // A direita e acima do ponto
+            } else {
+                if(p2.y == currMousePos.y) { // Segundo ponto na mesma cota
+                    if((p2.x > currMousePos.x) && (p1.y > currMousePos.y)) ni++; // A direita e acima do ponto
+                } else {
+                    if((p1.x > currMousePos.x) && (p2.x > currMousePos.x)) ni++; // Inteiramente a direita
+                    else { // Verifica ponto de interseção
+                        let dx = p1.x - p2.x;
+                        let xc = p1.x;
+                        if(dx != 0) xc += (currMousePos.y - p1.y) * dx / (p1.y - p2.y);
+                        if(xc > currMousePos.x) ni++;
+                    }
+                }
+            }
+        }
+        fst = i;
+    }
+    if(ni % 2 == 0) return false;
+    else return true;
 }
 
 // Desenha o objeto em um context
@@ -224,6 +256,7 @@ function CanvasState(canvas) {
             myState.valid = false;
         }
         myState.writeMousePos("Mouse position on canvas: " + currMousePos.x + ',' + currMousePos.y);
+        myState.isMovable(currMousePos);
     }, true);
 
 
@@ -249,7 +282,6 @@ function CanvasState(canvas) {
         } else if(myState.button == 3) {
             if(myState.startline) {
                 myState.newPolygon = new Polygon();
-                myState.newPolygon.lines.push(new Line(currMousePos, currMousePos));
                 myState.startline = false;
                 myState.drawing = true;
                 myState.prevMousePos = currMousePos;
@@ -271,17 +303,7 @@ function CanvasState(canvas) {
         e.preventDefault();
         // Finaliza o polígono
         if(myState.newPolygon != null) {
-            var polygon = myState.objects[myState.getObjectsLenght() - 1].shape;
-            var l = polygon.lines.length;
-            // Caso não seja fechado um polígono, remove-o da lista de objetos
-            if(l <= 2) {
-                myState.removeObject();
-                myState.resetState();
-                return false;
-            }
-            var lineStart = polygon.lines[0];
-            var lineEnd = polygon.lines[l-1];
-            polygon.lines.push(new Line(lineEnd.end, lineStart.start));
+            myState.closePolygon();
             myState.resetState();
         }
         return false;
@@ -379,12 +401,16 @@ CanvasState.prototype.drawLine = function(currMousePos) {
 }
 
 CanvasState.prototype.drawPolygon = function(currMousePos) {
-    var currPolygon = this.objects[this.getObjectsLenght() - 1].shape;
-    var start = currPolygon.lines[0].start;
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.prevMousePos.x, this.prevMousePos.y);
-    this.ctx.lineTo(currMousePos.x, currMousePos.y);
-    this.ctx.lineTo(start.x, start.y);
+    var polygon = this.objects[this.getObjectsLenght() - 1].shape;
+    if(polygon.getLinesLenght() == 0) {
+        this.drawLine(currMousePos);
+    } else {
+        var start = polygon.lines[0].start;
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.prevMousePos.x, this.prevMousePos.y);
+        this.ctx.lineTo(currMousePos.x, currMousePos.y);
+        this.ctx.lineTo(start.x, start.y);
+    }
 }
 
 CanvasState.prototype.dragShape = function(currMousePos) {
@@ -406,10 +432,11 @@ CanvasState.prototype.dragShape = function(currMousePos) {
 }
 
 CanvasState.prototype.setButton = function(id) {
+    this.resetState();
     switch(id) {
         case "pointbt"   : this.button = 1; break;
-        case "linebt"    : this.button = 2; this.resetState(); break;
-        case "polygonbt" : this.button = 3; this.resetState(); break;
+        case "linebt"    : this.button = 2; break;
+        case "polygonbt" : this.button = 3; break;
         case "bezierbt"  : this.button = 4; break;
         case "movebt"    : this.button = 5; break;
         case "rotatebt"  : this.button = 6; break;
@@ -425,6 +452,24 @@ CanvasState.prototype.resetState = function() {
     this.startline = true;
     this.drawing = false;
     this.valid = false;
+}
+
+CanvasState.prototype.closePolygon = function() {
+    if(this.getObjectsLenght() > 0) {
+        var polygon = this.objects[this.getObjectsLenght() - 1].shape;
+        if(polygon.shapeType == shapeType.POLYGON) {
+            var l = polygon.lines.length;
+            // Caso não seja fechado um polígono, remove-o da lista de objetos
+            if(l <= 1) {
+                this.removeObject();
+                return;
+            }
+            // Caso contrário, fecha-o unindo o ponto inicial da primeira aresta com o ponto final da última aresta
+            var lineStart = polygon.lines[0];
+            var lineEnd = polygon.lines[l - 1];
+            polygon.lines.push(new Line(lineEnd.end, lineStart.start));
+        }
+    }
 }
 
 // Método de auxílio
