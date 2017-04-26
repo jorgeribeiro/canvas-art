@@ -285,9 +285,11 @@ function CanvasState(canvas) {
                 myState.prevMousePos = currMousePos;
                 myState.addObject(myState.newPolygon);
             } else {
-                var polygon = myState.objects[myState.getObjectsLenght() - 1].shape;
-                polygon.lines.push(new Line(myState.prevMousePos, currMousePos));
-                myState.prevMousePos = currMousePos;
+                if((myState.prevMousePos.x != currMousePos.x) && (myState.prevMousePos.y != currMousePos.y)) {
+                    var polygon = myState.objects[myState.getObjectsLenght() - 1].shape;
+                    polygon.lines.push(new Line(myState.prevMousePos, currMousePos));
+                    myState.prevMousePos = currMousePos;
+                }
             }
         }
 
@@ -301,7 +303,6 @@ function CanvasState(canvas) {
         e.preventDefault();
         // Finaliza o polígono
         if(myState.newPolygon != null) {
-            myState.closePolygon();
             myState.resetState();
         }
         return false;
@@ -454,6 +455,8 @@ CanvasState.prototype.setButton = function(id) {
 }
 
 CanvasState.prototype.resetState = function() {
+    this.closePolygon();
+    this.ctx.beginPath();
     this.newPolygon = null;
     this.startline = true;
     this.drawing = false;
@@ -465,7 +468,7 @@ CanvasState.prototype.closePolygon = function() {
         var polygon = this.objects[this.getObjectsLenght() - 1].shape;
         if(polygon.shapeType == shapeType.POLYGON) {
             var l = polygon.lines.length;
-            // Caso não seja fechado um polígono, remove-o da lista de objetos
+            // Caso não seja fechado um polígono com no mínimo 3 linhas, remove-o da lista de objetos
             if(l <= 1) {
                 this.removeObject();
                 return;
