@@ -72,12 +72,14 @@ function Line(start, end) {
     this.start = start || {x: 0, y: 0};
     this.end = end || {x: 0, y: 0};
     this.stroke = '#000000';
+    this.width = 1;
     this.shapeType = shapeType.LINE;
 }
 
 function Polygon() {
     this.lines = [];
     this.stroke = '#000000';
+    this.width = 1;
     this.shapeType = shapeType.POLYGON;
 }
 
@@ -202,8 +204,9 @@ Object.prototype.draw = function(ctx) {
         ctx.moveTo(shape.start.x, shape.start.y);
         ctx.lineTo(shape.end.x, shape.end.y);
         ctx.strokeStyle = shape.stroke;
+        ctx.lineWidth = shape.width;
         ctx.stroke();
-    } else if(this.shapeType == shapeType.POLYGON){
+    } else if(this.shapeType == shapeType.POLYGON) {
         var l = shape.lines.length;
         for(var i = 0; i < l; i++) {
             var line = shape.lines[i];
@@ -211,6 +214,7 @@ Object.prototype.draw = function(ctx) {
             ctx.moveTo(line.start.x, line.start.y);
             ctx.lineTo(line.end.x, line.end.y);
             ctx.strokeStyle = shape.stroke;
+            ctx.lineWidth = shape.width;
             ctx.stroke();
         }
     }
@@ -230,9 +234,11 @@ function CanvasState(canvas) {
     this.objects = [];  // Objetos criados na tela
     this.dragging = false; // Flag para quando se está arrastando um objeto
     this.drawing = false; // Flag para quando se está desenhando um objeto
+    this.rotating = false; // Flag para quando se está rotacionando um objeto
     this.selection = null; // Objeto selecionado
     this.startline = true; // Usado para desenhar linhas
     this.prevMousePos = {x: 0, y: 0}; // Salva o primeiro click do mouse ao desenhar
+    this.rotationCenter = {x: 0, y: 0}; // Centro de rotação
     this.mouseDownFired = false; // Usado para mover sem desenhar
     this.button = 0; // Botão selecionado
     this.newPolygon = null; // Polígono a ser adicionado
@@ -249,9 +255,11 @@ function CanvasState(canvas) {
                 myState.drawPolygon(currMousePos);
             }
             myState.valid = false;
-        }
-        else if(myState.dragging) {
+        } else if(myState.dragging) {
             myState.dragShape(currMousePos);
+            myState.valid = false;
+        } else if(myState.rotating) {
+            myState.rotateShape(currMousePos);
             myState.valid = false;
         }
         myState.writeMousePos("Mouse position on canvas: " + currMousePos.x + ',' + currMousePos.y);
@@ -291,6 +299,17 @@ function CanvasState(canvas) {
                     myState.prevMousePos = currMousePos;
                 }
             }
+        } else if(myState.button == 6) {
+            var currMousePos = myState.getMousePos(e);
+            var objects = myState.objects;
+            var l = objects.length;
+            for(var i = l - 1; i >= 0; i--) {
+                if(objects[i].contains(currMousePos)) {
+                    myState.selection = objects[i].shape;
+                    myState.valid = false;
+                    return;
+                }
+            }
         }
 
         if(myState.selection) {
@@ -317,15 +336,24 @@ function CanvasState(canvas) {
             var l = objects.length;
             for(var i = l - 1; i >= 0; i--) {
                 if(objects[i].contains(currMousePos)) {
-                    var mySel = objects[i].shape;
+                    myState.selection = objects[i].shape;
                     myState.prevMousePos = currMousePos;
                     myState.dragging = true;
-                    myState.selection = mySel;
                     myState.valid = false;
                     return;
                 }
             }
+        } else if(myState.button == 6) {
+            var currMousePos = myState.getMousePos(e);
+            if(myState.selection != null) {
+                myState.rotationCenter = currMousePos;
+                myState.prevMousePos = currMousePos;
+                myState.rotating = true;
+                myState.valid = false;
+                return;
+            }
         }
+
         if(myState.selection) {
             myState.selection = null;
             myState.valid = false;
@@ -336,6 +364,8 @@ function CanvasState(canvas) {
 
     canvas.addEventListener('mouseup', function(e) {
         myState.dragging = false;
+        myState.rotating = false;
+        myState.resetState();
     });
 
     this.selectionColor = '#CC0000';
@@ -375,6 +405,29 @@ CanvasState.prototype.draw = function() {
         for(var i = 0; i < l; i++) {
             var object = this.objects[i];
             this.objects[i].draw(ctx);
+        }
+
+        if(this.selection != null) {
+            ctx.strokeStyle = this.selectionColor;
+            ctx.lineWidth = this.selectionWidth;
+            var mySel = this.selection;
+            if(mySel.shapeType == shapeType.POINT) {
+                ctx.strokeRect(mySel.x,mySel.y,mySel.w,mySel.h);
+            } else if(mySel.shapeType == shapeType.LINE) {
+                ctx.beginPath();
+                ctx.moveTo(mySel.start.x, mySel.start.y);
+                ctx.lineTo(mySel.end.x, mySel.end.y);
+                ctx.stroke();
+            } else if(mySel.shapeType == shapeType.POLYGON) {
+                var l = mySel.lines.length;
+                for(var i = 0; i < l; i++) {
+                    var line = mySel.lines[i];
+                    ctx.beginPath();
+                    ctx.moveTo(line.start.x, line.start.y);
+                    ctx.lineTo(line.end.x, line.end.y);
+                    ctx.stroke();
+                }
+            }
         }
 
         this.valid = true;
@@ -438,6 +491,45 @@ CanvasState.prototype.dragShape = function(currMousePos) {
     this.prevMousePos = currMousePos;
 }
 
+CanvasState.prototype.rotateShape = function(currMousePos) {
+    var dragx = currMousePos.x - this.prevMousePos.x;
+    //this.ctx.translate(this.rotationCenter.x, this.rotationCenter.y);
+
+    if(this.selection.shapeType == shapeType.POINT) {
+        if(dragx > 0) {
+            this.selection.x = Math.floor((this.selection.x * Math.cos(-0.01)) - (this.selection.y * Math.sin(-0.01)));
+            this.selection.y = Math.floor((this.selection.y * Math.cos(-0.01)) + (this.selection.x * Math.sin(-0.01)));
+        } else if(dragx < 0) {
+            this.selection.x = Math.floor((this.selection.x * Math.cos(0.01)) - (this.selection.y * Math.sin(0.01)));
+            this.selection.y = Math.floor((this.selection.y * Math.cos(0.01)) + (this.selection.x * Math.sin(0.01)));
+        }
+        console.log(this.selection.x + " " + this.selection.y);
+    } else if(this.selection.shapeType == shapeType.LINE) {
+        /*
+        var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
+        newStart.x = this.selection.start.x + dragx; newStart.y = this.selection.start.y + dragy;
+        newEnd.x = this.selection.end.x + dragx; newEnd.y = this.selection.end.y + dragy;
+        this.selection.start = newStart;
+        this.selection.end = newEnd;
+        */
+    } else if(this.selection.shapeType == shapeType.POLYGON) {
+        /*
+        var l = this.selection.lines.length;
+        for(var i = 0; i < l; i++) {
+            var line = this.selection.lines[i];
+            var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
+            newStart.x = line.start.x + dragx; newStart.y = line.start.y + dragy;
+            newEnd.x = line.end.x + dragx; newEnd.y = line.end.y + dragy;
+            line.start = newStart;
+            line.end = newEnd;
+        }
+        */
+    }
+
+    //this.ctx.translate(-this.rotationCenter.x, -this.rotationCenter.y);
+    this.prevMousePos = currMousePos;
+}
+
 CanvasState.prototype.setButton = function(id) {
     this.resetState();
     switch(id) {
@@ -461,6 +553,7 @@ CanvasState.prototype.resetState = function() {
     this.startline = true;
     this.drawing = false;
     this.valid = false;
+    this.selection = null;
 }
 
 CanvasState.prototype.closePolygon = function() {
