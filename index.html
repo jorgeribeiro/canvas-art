@@ -365,7 +365,7 @@ function CanvasState(canvas) {
     canvas.addEventListener('mouseup', function(e) {
         myState.dragging = false;
         myState.rotating = false;
-        myState.resetState();
+        myState.selection = null;
     });
 
     this.selectionColor = '#CC0000';
