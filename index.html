@@ -503,7 +503,6 @@ CanvasState.prototype.rotateShape = function(currMousePos) {
             this.selection.x = Math.floor((this.selection.x * Math.cos(0.01)) - (this.selection.y * Math.sin(0.01)));
             this.selection.y = Math.floor((this.selection.y * Math.cos(0.01)) + (this.selection.x * Math.sin(0.01)));
         }
-        console.log(this.selection.x + " " + this.selection.y);
     } else if(this.selection.shapeType == shapeType.LINE) {
         /*
         var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
