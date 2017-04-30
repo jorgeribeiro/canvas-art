@@ -47,7 +47,7 @@ canvas {
   <button id="removebt" class="button" onclick="s.setButton(this.id)">Remove</button>
 </div>
 <br><br><br><br>
-<canvas id="myCanvas" width="1280" height="550">
+<canvas id="myCanvas" width="1000" height="550">
 </body>
 
 <script>
@@ -235,6 +235,7 @@ function CanvasState(canvas) {
     this.dragging = false; // Flag para quando se está arrastando um objeto
     this.drawing = false; // Flag para quando se está desenhando um objeto
     this.rotating = false; // Flag para quando se está rotacionando um objeto
+    this.scaling = false; // Flag para quando se está escalando um objeto
     this.selection = null; // Objeto selecionado
     this.startline = true; // Usado para desenhar linhas
     this.prevMousePos = {x: 0, y: 0}; // Salva o primeiro click do mouse ao desenhar
@@ -310,6 +311,17 @@ function CanvasState(canvas) {
                     return;
                 }
             }
+        } else if(myState.button == 7) {
+            var currMousePos = myState.getMousePos(e);
+            var objects = myState.objects;
+            var l = objects.length;
+            for(var i = l - 1; i >= 0; i--) {
+                if(objects[i].contains(currMousePos)) {
+                    myState.selection = objects[i].shape;
+                    myState.valid = false;
+                    return;
+                }
+            }
         }
 
         if(myState.selection) {
@@ -365,7 +377,28 @@ function CanvasState(canvas) {
     canvas.addEventListener('mouseup', function(e) {
         myState.dragging = false;
         myState.rotating = false;
-        myState.selection = null;
+    });
+
+    // IE, Chrome, Safari, Opera
+    canvas.addEventListener('mousewheel', function(e) {
+        if(myState.button == 7 && myState.selection != null) {
+            var delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
+            delta = (delta * 0.3) + 1;
+            var shapeS = scale(myState.selection, delta, delta);
+            myState.scaleShape(shapeS);
+            myState.valid = false;
+        }
+    });
+
+    // Firefox
+    canvas.addEventListener('DOMMouseScroll', function(e) {
+        if(myState.button == 7 && myState.selection != null) {
+            var delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
+            delta = (delta * 0.3) + 1;
+            var shapeS = scale(myState.selection, delta, delta);
+            myState.scaleShape(shapeS);
+            myState.valid = false;
+        }
     });
 
     this.selectionColor = '#CC0000';
@@ -412,7 +445,7 @@ CanvasState.prototype.draw = function() {
             ctx.lineWidth = this.selectionWidth;
             var mySel = this.selection;
             if(mySel.shapeType == shapeType.POINT) {
-                ctx.strokeRect(mySel.x,mySel.y,mySel.w,mySel.h);
+                ctx.strokeRect(mySel.x, mySel.y, mySel.w, mySel.h);
             } else if(mySel.shapeType == shapeType.LINE) {
                 ctx.beginPath();
                 ctx.moveTo(mySel.start.x, mySel.start.y);
@@ -466,26 +499,25 @@ CanvasState.prototype.drawPolygon = function(currMousePos) {
 }
 
 CanvasState.prototype.dragShape = function(currMousePos) {
-    var dragx = currMousePos.x - this.prevMousePos.x;
-    var dragy = currMousePos.y - this.prevMousePos.y;
+    var v = vector(this.prevMousePos, currMousePos);
+    var newPosition;
     if(this.selection.shapeType == shapeType.POINT) {
-        this.selection.x = currMousePos.x + dragx;
-        this.selection.y = currMousePos.y + dragy;
+        newPosition = translate(this.selection, v);
+        this.selection.x = newPosition.x;
+        this.selection.y = newPosition.y;
     } else if(this.selection.shapeType == shapeType.LINE) {
-        var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
-        newStart.x = this.selection.start.x + dragx; newStart.y = this.selection.start.y + dragy;
-        newEnd.x = this.selection.end.x + dragx; newEnd.y = this.selection.end.y + dragy;
-        this.selection.start = newStart;
-        this.selection.end = newEnd;
+        newPosition = translate(this.selection.start, v);
+        this.selection.start = newPosition;
+        newPosition = translate(this.selection.end, v);
+        this.selection.end = newPosition;
     } else if(this.selection.shapeType == shapeType.POLYGON) {
         var l = this.selection.lines.length;
         for(var i = 0; i < l; i++) {
             var line = this.selection.lines[i];
-            var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
-            newStart.x = line.start.x + dragx; newStart.y = line.start.y + dragy;
-            newEnd.x = line.end.x + dragx; newEnd.y = line.end.y + dragy;
-            line.start = newStart;
-            line.end = newEnd;
+            newPosition = translate(line.start, v);
+            line.start = newPosition;
+            newPosition = translate(line.end, v);
+            line.end = newPosition;
         }
     }
     this.prevMousePos = currMousePos;
@@ -493,16 +525,14 @@ CanvasState.prototype.dragShape = function(currMousePos) {
 
 CanvasState.prototype.rotateShape = function(currMousePos) {
     var dragx = currMousePos.x - this.prevMousePos.x;
-    //this.ctx.translate(this.rotationCenter.x, this.rotationCenter.y);
+    var ang;
+    if(dragx > 0) ang = -0.1;
+    else if(dragx < 0) ang = 0.1; 
 
     if(this.selection.shapeType == shapeType.POINT) {
-        if(dragx > 0) {
-            this.selection.x = Math.floor((this.selection.x * Math.cos(-0.01)) - (this.selection.y * Math.sin(-0.01)));
-            this.selection.y = Math.floor((this.selection.y * Math.cos(-0.01)) + (this.selection.x * Math.sin(-0.01)));
-        } else if(dragx < 0) {
-            this.selection.x = Math.floor((this.selection.x * Math.cos(0.01)) - (this.selection.y * Math.sin(0.01)));
-            this.selection.y = Math.floor((this.selection.y * Math.cos(0.01)) + (this.selection.x * Math.sin(0.01)));
-        }
+        var newPosition = rotate(this.selection, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
+        this.selection.x = newPosition.x;
+        this.selection.y = newPosition.y;
     } else if(this.selection.shapeType == shapeType.LINE) {
         /*
         var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
@@ -524,9 +554,21 @@ CanvasState.prototype.rotateShape = function(currMousePos) {
         }
         */
     }
-
-    //this.ctx.translate(-this.rotationCenter.x, -this.rotationCenter.y);
     this.prevMousePos = currMousePos;
+}
+
+CanvasState.prototype.scaleShape = function(shape) {
+    if(shape.shapeType == shapeType.LINE) {
+        this.selection.start = shape.start;
+        this.selection.end = shape.end;
+    } else if(shape.shapeType == shapeType.POLYGON) {
+        var polygon = this.selection;
+        var l = polygon.lines.length;
+        for(var i = 0; i < l; i++) {
+            polygon.lines[i].start = shape.lines[i].start;
+            polygon.lines[i].end = shape.lines[i].end;
+        }
+    }
 }
 
 CanvasState.prototype.setButton = function(id) {
@@ -545,14 +587,17 @@ CanvasState.prototype.setButton = function(id) {
     }
 }
 
+// Reinicia várias opções importantes ao canvas para evitar conflitos e bugs
 CanvasState.prototype.resetState = function() {
     this.closePolygon();
     this.ctx.beginPath();
+    this.ctx.strokeStyle = "#000000";
+    this.ctx.lineWidth = 1;
     this.newPolygon = null;
+    this.selection = null;
     this.startline = true;
     this.drawing = false;
     this.valid = false;
-    this.selection = null;
 }
 
 CanvasState.prototype.closePolygon = function() {
@@ -587,6 +632,134 @@ CanvasState.prototype.isMovable = function(currMousePos) {
 CanvasState.prototype.getObjectsLenght = function() {
     var l = this.objects.length;
     return l;
+}
+
+function multMatrix(m1, m2) {
+    var m1Rows = m1.length, m1Cols = m1[0].length,
+        m2Rows = m2.length, m2Cols = m2[0].length;
+    var m = new Array(m1Rows);
+    for(var i = 0; i < m1Rows; i++) {
+        m[i] = new Array(m2Cols);
+        for(var j = 0; j < m2Cols; j++) {
+            m[i][j] = 0;
+            for(var k = 0; k < m1Cols; k++) {
+                m[i][j] += m1[i][k] * m2[k][j];
+            }
+        }
+    }
+    return m;
+}
+
+function vector(p1, p2) {
+    return {x: p2.x - p1.x, y: p2.y - p1.y};
+}
+
+// Translada o ponto p
+function translate(p, vt) { // p: ponto; vt: vetor de translação
+    var pTranslated = {x: 0, y: 0};
+    var m1 = [
+      [1, 0, vt.x],
+      [0, 1, vt.y],
+      [0, 0, 1]
+    ];
+    var m2 = [
+      [p.x],
+      [p.y],
+      [1]
+    ];
+    var m = multMatrix(m1, m2);
+    pTranslated.x = m[0][0];
+    pTranslated.y = m[1][0];
+
+    return pTranslated;
+}
+
+// Rotaciona o ponto p
+function rotate(p, pr, cos, sin) { // p: ponto; pr: ponto de rotação
+    var pRotated = {x: 0, y: 0};
+    var m1 = [
+      [cos, -sin, 0],
+      [sin, cos, 0],
+      [0, 0, 1]
+    ];
+    var v = vector(pr, {x: 0, y: 0});
+    var p0 = translate(p, v); // Translada o ponto para o centro de rotação ficar na origem
+    console.log(p0);
+    var m2 = [
+      [p0.x],
+      [p0.y],
+      [1]
+    ];
+    var m = multMatrix(m1, m2); // Rotaciona
+    var p1 = {x: 0, y: 0};
+    p1.x = m[0][0];
+    p1.y = m[1][0];
+    v = vector({x: 0, y: 0}, pr);
+    pRotated = translate(p1, v); // Retorna ao ponto original rotacionado
+
+    return pRotated;
+}
+
+// Escala uma forma
+function scale(shape, sx, sy) {
+    if(shape.shapeType == shapeType.LINE) {
+        var start = shape.start, end = shape.end;
+        var mp = midPoint(start, end);
+        var v = vector(mp, {x: 0, y: 0});
+        start = translate(start, v);
+        end = translate(end, v);
+        start = scaleP(start, sx, sy);
+        end = scaleP(end, sx, sy);
+        return new Line(translate(start, mp), translate(end, mp));
+    } else if(shape.shapeType == shapeType.POLYGON) {
+        var l = shape.lines.length;
+        var newPolygon = new Polygon();
+        var mp = {x: 0, y: 0};
+
+        // Ponto central ao polígono
+        for(var i = 0; i < l; i++) {
+            var line = shape.lines[i];
+            mp.x += line.end.x / l;
+            mp.y += line.end.y / l;
+        }
+
+        // Escala o polígono
+        for(var i = 0; i < l; i++) {
+            var line = shape.lines[i];
+            var start = line.start, end = line.end;
+            var v = vector(mp, {x: 0, y: 0});
+            start = translate(start, v);
+            end = translate(end, v);
+            start = scaleP(start, sx, sy);
+            end = scaleP(end, sx, sy);
+            newPolygon.lines.push(new Line(translate(start, mp), translate(end, mp)));
+        }
+        return newPolygon;
+    }
+}
+
+// Escala o ponto p
+function scaleP(p, sx, sy) {
+    var pScaled = {x: 0, y: 0}
+    var m1 = [
+      [sx, 0, 0],
+      [0, sy, 0],
+      [0, 0, 1]
+    ];
+    var m2 = [
+      [p.x],
+      [p.y],
+      [1]
+    ];
+    var m = multMatrix(m1, m2);
+    pScaled.x = m[0][0];
+    pScaled.y = m[1][0];
+
+    return pScaled;
+}
+
+function midPoint(p1, p2) {
+    return {x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2};
 }
 
 </script>
