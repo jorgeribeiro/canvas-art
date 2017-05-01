@@ -525,34 +525,28 @@ CanvasState.prototype.dragShape = function(currMousePos) {
 
 CanvasState.prototype.rotateShape = function(currMousePos) {
     var dragx = currMousePos.x - this.prevMousePos.x;
-    var ang;
+    var ang = 0;
     if(dragx > 0) ang = -0.1;
-    else if(dragx < 0) ang = 0.1; 
+    else if(dragx < 0) ang = 0.1;
 
-    if(this.selection.shapeType == shapeType.POINT) {
+    if(this.selection.shapeType == shapeType.POINT && ang != 0) {
         var newPosition = rotate(this.selection, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
         this.selection.x = newPosition.x;
         this.selection.y = newPosition.y;
     } else if(this.selection.shapeType == shapeType.LINE) {
-        /*
-        var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
-        newStart.x = this.selection.start.x + dragx; newStart.y = this.selection.start.y + dragy;
-        newEnd.x = this.selection.end.x + dragx; newEnd.y = this.selection.end.y + dragy;
+        var newStart = rotate(this.selection.start, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
+        var newEnd = rotate(this.selection.end, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
         this.selection.start = newStart;
         this.selection.end = newEnd;
-        */
     } else if(this.selection.shapeType == shapeType.POLYGON) {
-        /*
         var l = this.selection.lines.length;
         for(var i = 0; i < l; i++) {
             var line = this.selection.lines[i];
-            var newStart = {x: 0, y: 0}, newEnd = {x: 0, y: 0};
-            newStart.x = line.start.x + dragx; newStart.y = line.start.y + dragy;
-            newEnd.x = line.end.x + dragx; newEnd.y = line.end.y + dragy;
+            var newStart = rotate(line.start, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
+            var newEnd = rotate(line.end, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
             line.start = newStart;
             line.end = newEnd;
         }
-        */
     }
     this.prevMousePos = currMousePos;
 }
@@ -684,7 +678,6 @@ function rotate(p, pr, cos, sin) { // p: ponto; pr: ponto de rotação
     ];
     var v = vector(pr, {x: 0, y: 0});
     var p0 = translate(p, v); // Translada o ponto para o centro de rotação ficar na origem
-    console.log(p0);
     var m2 = [
       [p0.x],
       [p0.y],
