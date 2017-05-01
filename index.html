@@ -376,7 +376,10 @@ function CanvasState(canvas) {
 
     canvas.addEventListener('mouseup', function(e) {
         myState.dragging = false;
-        myState.rotating = false;
+        if(myState.rotating) {
+            myState.rotating = false;
+            myState.mouseDownFired = false;
+        }
     });
 
     // IE, Chrome, Safari, Opera
