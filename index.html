@@ -39,7 +39,7 @@ canvas {
   <button id="pointbt" class="button" onclick="s.setButton(this.id)">Point</button>
   <button id="linebt" class="button" onclick="s.setButton(this.id)">Line</button>
   <button id="polygonbt" class="button" onclick="s.setButton(this.id)">Polygon</button>
-  <button id="bezierbt" class="button" onclick="s.setButton(this.id)">Bezier</button>
+  <!--<button id="bezierbt" class="button" onclick="s.setButton(this.id)">Bezier</button>-->
   <button id="movebt" class="button" onclick="s.setButton(this.id)">Move</button>
   <button id="rotatebt" class="button" onclick="s.setButton(this.id)">Rotate</button>
   <button id="scalebt" class="button" onclick="s.setButton(this.id)">Scale</button>
@@ -243,6 +243,7 @@ function CanvasState(canvas) {
     this.mouseDownFired = false; // Usado para mover sem desenhar
     this.button = 0; // Botão selecionado
     this.newPolygon = null; // Polígono a ser adicionado
+    this.objectIndex = -1;
 
     // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState em uma variável
     var myState = this;
@@ -322,6 +323,18 @@ function CanvasState(canvas) {
                     return;
                 }
             }
+        } else if(myState.button == 9) {
+            var currMousePos = myState.getMousePos(e);
+            var objects = myState.objects;
+            var l = objects.length;
+            for(var i = l - 1; i >= 0; i--) {
+                if(objects[i].contains(currMousePos)) {
+                    myState.selection = objects[i].shape;
+                    myState.objectIndex = i;
+                    myState.valid = false;
+                    return;
+                }
+            }
         }
 
         if(myState.selection) {
@@ -336,6 +349,14 @@ function CanvasState(canvas) {
         if(myState.newPolygon != null) {
             myState.resetState();
         }
+        if(myState.button == 9) {
+            if(myState.objectIndex > -1) {
+                myState.removeObject(myState.objectIndex);
+                myState.objectIndex = -1;
+                myState.valid = false;
+            }
+        }
+        test();
         return false;
     });
 
@@ -417,8 +438,8 @@ CanvasState.prototype.addObject = function(shape) {
     this.valid = false;
 }
 
-CanvasState.prototype.removeObject = function() {
-    this.objects.pop();
+CanvasState.prototype.removeObject = function(i) {
+    this.objects.splice(i, 1);
 }
 
 // Limpa a tela para redesenhar o canvas em cada interval
@@ -574,7 +595,7 @@ CanvasState.prototype.setButton = function(id) {
         case "pointbt"   : this.button = 1; break;
         case "linebt"    : this.button = 2; break;
         case "polygonbt" : this.button = 3; break;
-        case "bezierbt"  : this.button = 4; break;
+        //case "bezierbt"  : this.button = 4; break;
         case "movebt"    : this.button = 5; break;
         case "rotatebt"  : this.button = 6; break;
         case "scalebt"   : this.button = 7; break;
@@ -754,8 +775,97 @@ function scaleP(p, sx, sy) {
     return pScaled;
 }
 
+function mirror(shape, rline) {
+    // Steps:
+    // 1. Translada linha e ponto para o eixo x, até o extremo da linha com menor y ter x = 0
+    // 2. Rotaciona linha e ponto em relação ao extremo da linha em que y = 0
+    // 3. Espelha
+    // 4. Rotaciona de volta
+    // 5. Translada de volta
+
+
+    // Para pontos
+    // Step 1:
+    var pt = {x: 0, y: 0}; // Ponto de translação
+    var po = {x: 0, y: 0}; // Ponto oposto ao de translação
+    if(rline.start.y == rline.end.y || rline.start.y < rline.end.y) {
+        pt = rline.start;
+        po = rline.end;
+    }
+    else {
+        pt = rline.end;
+        po = rline.start;
+    }
+
+    var v = vector(pt, {x: 0, y: 0});
+    pt = translate(pt, v);
+    po = translate(po, v);
+    shape = translate(shape, v);
+
+    // Step 2:
+    var ang = angle({x: po.x - pt.x, y: po.y - pt.y}, {x: po.x - pt.x, y: 0});
+    po = rotate(po, pt, Math.cos(-ang), Math.sin(-ang));
+    shape = rotate(shape, pt, Math.cos(-ang), Math.sin(-ang));
+
+    // Step 3:
+    shape = mirrorP(shape);
+
+    //Step 4:
+    po = rotate(po, pt, Math.cos(ang), Math.sin(ang));
+    shape = rotate(shape, pt, Math.cos(ang), Math.sin(ang));
+
+    // Step 5:
+    v = {x: -v.x, y: -v.y};
+    pt = translate(pt, v);
+    po = translate(po, v);
+    shape = translate(shape, v);
+
+    return shape;
+}
+
+// Espelha o ponto p em relação ao eixo x
+function mirrorP(p) {
+    var pMirrored = {x: 0, y: 0};
+    var m1 = [
+      [1, 0, 0],
+      [0, -1, 0],
+      [0, 0, 1]
+    ];
+    var m2 = [
+      [p.x],
+      [p.y],
+      [1]
+    ];
+    var m = multMatrix(m1, m2);
+    pMirrored.x = m[0][0];
+    pMirrored.y = m[1][0];
+
+    return pMirrored;
+}
+
 function midPoint(p1, p2) {
     return {x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2};
+}
+
+// Calcula o ângulo entre dois vetores
+// Fórmula: arcos(a) = v1 . v2
+//                   -----------
+//                   |v1| * |v2|
+function angle(v1, v2) {
+    var vp = (v1.x * v2.x) + (v1.y * v2.y);
+    var vm = (Math.sqrt(Math.pow(v1.x, 2) + Math.pow(v1.y, 2))) * (Math.sqrt(Math.pow(v2.x, 2) + Math.pow(v2.y, 2)))
+    return Math.acos(vp / vm);
+}
+
+function test() {
+    var l = new Line({x: 1, y: 1}, {x: 50, y: 50});
+    var start = l.start;
+    var end = l.end;
+    console.log(l.start.x + " " + l.start.y);
+    console.log(start.x + " " + start.y);
+    l.start = {x: 2, y: 2};
+    console.log(l.start.x + " " + l.start.y);
+    console.log(start.x + " " + start.y);
 }
 
 </script>
