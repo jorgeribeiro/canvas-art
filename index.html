@@ -47,7 +47,7 @@ canvas {
   <button id="removebt" class="button" onclick="s.setButton(this.id)">Remove</button>
 </div>
 <br><br><br><br>
-<canvas id="myCanvas" width="1000" height="550">
+<canvas id="myCanvas" width="1050" height="550">
 </body>
 
 <script>
@@ -56,6 +56,7 @@ var shapeType = {
     POINT: 1,
     LINE: 2,
     POLYGON: 3,
+    POLYGONAL: 4,
 };
 
 // Um ponto contém a sua coordenada x, y
@@ -88,6 +89,18 @@ Polygon.prototype.getLinesLength = function() {
     return l;
 }
 
+function Polygonal() {
+    this.lines = [];
+    this.stroke = '#000000';
+    this.width = 1;
+    this.shapeType = shapeType.POLYGONAL;
+}
+
+Polygonal.prototype.getLinesLength = function() {
+    var l = this.lines.length;
+    return l;
+}
+
 // Um objeto é um vetor com n formas
 // Podem ser um ponto, uma linha ou um polígono
 function Object(shape) {
@@ -101,8 +114,10 @@ Object.prototype.contains = function(currMousePos) {
         return this.pickPoint(currMousePos);
     } else if(this.shapeType == shapeType.LINE) {
         return this.pickLine(currMousePos);
-    } else if(this.shapeType == shapeType.POLYGON){
+    } else if(this.shapeType == shapeType.POLYGON) {
         return this.pickPolygon(currMousePos);
+    } else if(this.shapeType == shapeType.POLYGONAL) {
+        return this.pickPolygonal(currMousePos);
     } else return false;
 }
 
@@ -192,6 +207,43 @@ Object.prototype.pickPolygon = function(currMousePos) {
     else return true;
 }
 
+// Determina se a posição do mouse é válida dentro de uma poligonal
+Object.prototype.pickPolygonal = function(currMousePos) {
+    var cod0 = [], cod1 = [];
+    var x0, y0, x1, y1;
+    var xmin, xmax, ymin, ymax;
+    var TOL = 5; // 5 pixels de tolerância
+
+    // Define os limites baseado na tolerância
+    xmin = currMousePos.x - TOL;
+    xmax = currMousePos.x + TOL;
+    ymin = currMousePos.y - TOL;
+    ymax = currMousePos.y + TOL;
+
+    var l = this.shape.getLinesLength();
+    for(var i = 0; i < l; i++) {
+        var line = this.shape.lines[i];
+        x0 = line.start.x;
+        y0 = line.start.y;
+        x1 = line.end.x;
+        y1 = line.end.y;
+        this.pickCode(x1, y1, xmin, xmax, ymin, ymax, cod1);
+        do {
+            this.pickCode(x0, y0, xmin, xmax, ymin, ymax, cod0);
+            for(var j = 0; j < 4; j++) {
+                if(cod0[j] && cod1[j]) break;
+            }
+            if(j != 4) break;
+            if(cod0[0]) y0 += (xmin - x0) * (y1 - y0) / (x1 - x0), x0 = xmin;
+            else if(cod0[1]) y0 += (xmax - x0) * (y1 - y0) / (x1 - x0), x0 = xmax;
+            else if(cod0[2]) x0 += (ymin - y0) * (x1 - x0) / (y1 - y0), y0 = ymin;
+            else if(cod0[3]) x0 += (ymax - y0) * (x1 - x0) / (y1 - y0), y0 = ymax;
+               else return true;
+        } while(true);
+    }
+    return false;
+}
+
 // Desenha o objeto em um context
 Object.prototype.draw = function(ctx) {
     // Desenha cada linha de um objeto
@@ -207,7 +259,18 @@ Object.prototype.draw = function(ctx) {
         ctx.lineWidth = shape.width;
         ctx.stroke();
     } else if(this.shapeType == shapeType.POLYGON) {
-        var l = shape.lines.length;
+        var l = shape.getLinesLength();
+        for(var i = 0; i < l; i++) {
+            var line = shape.lines[i];
+            ctx.beginPath();
+            ctx.moveTo(line.start.x, line.start.y);
+            ctx.lineTo(line.end.x, line.end.y);
+            ctx.strokeStyle = shape.stroke;
+            ctx.lineWidth = shape.width;
+            ctx.stroke();
+        }
+    } else if(this.shapeType == shapeType.POLYGONAL) {
+        var l = shape.getLinesLength();
         for(var i = 0; i < l; i++) {
             var line = shape.lines[i];
             ctx.beginPath();
@@ -242,6 +305,7 @@ function CanvasState(canvas) {
     this.mouseDownFired = false; // Usado para mover sem desenhar
     this.button = 0; // Botão selecionado
     this.newPolygon = null; // Polígono a ser adicionado
+    this.newPolygonal = null; // Polígonal a ser adicionada
     this.objectIndex = -1; // Auxilia na remoção
     this.mline = null; // Auxilia no espelhamento
 
@@ -255,6 +319,8 @@ function CanvasState(canvas) {
                 myState.drawLine(currMousePos);
             } else if(myState.button == 3) {
                 myState.drawPolygon(currMousePos);
+            } else if(myState.button == 4) {
+                myState.drawPolygonal(currMousePos);
             } else if(myState.button == 8) {
                 myState.drawMirrorLine(currMousePos);
             }
@@ -303,8 +369,21 @@ function CanvasState(canvas) {
                     myState.prevMousePos = currMousePos;
                 }
             }
+        } else if(myState.button == 4) {
+            if(myState.startline) {
+                myState.newPolygonal = new Polygonal();
+                myState.startline = false;
+                myState.drawing = true;
+                myState.prevMousePos = currMousePos;
+                myState.addObject(myState.newPolygonal);
+            } else {
+                if((myState.prevMousePos.x != currMousePos.x) && (myState.prevMousePos.y != currMousePos.y)) {
+                    var polygonal = myState.objects[myState.getObjectsLength() - 1].shape;
+                    polygonal.lines.push(new Line(myState.prevMousePos, currMousePos));
+                    myState.prevMousePos = currMousePos;
+                }
+            }
         } else if(myState.button == 6) {
-            var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
             var l = myState.getObjectsLength();
             for(var i = l - 1; i >= 0; i--) {
@@ -315,7 +394,6 @@ function CanvasState(canvas) {
                 }
             }
         } else if(myState.button == 7) {
-            var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
             var l = myState.getObjectsLength();
             for(var i = l - 1; i >= 0; i--) {
@@ -341,7 +419,6 @@ function CanvasState(canvas) {
                 }
                 return;
             } else {
-                var currMousePos = myState.getMousePos(e);
                 var objects = myState.objects;
                 var l = myState.getObjectsLength();
                 for(var i = l - 1; i >= 0; i--) {
@@ -353,7 +430,6 @@ function CanvasState(canvas) {
                 }
             }
         } else if(myState.button == 9) {
-            var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
             var l = myState.getObjectsLength();
             for(var i = l - 1; i >= 0; i--) {
@@ -375,7 +451,7 @@ function CanvasState(canvas) {
     canvas.addEventListener('contextmenu', function(e) {
         e.preventDefault();
         // Finaliza o polígono
-        if(myState.newPolygon != null) {
+        if(myState.newPolygon != null || myState.newPolygonal != null) {
             myState.resetState();
         }
         if(myState.button == 9) {
@@ -509,7 +585,16 @@ CanvasState.prototype.draw = function() {
                 ctx.lineTo(mySel.end.x, mySel.end.y);
                 ctx.stroke();
             } else if(mySel.shapeType == shapeType.POLYGON) {
-                var l = mySel.lines.length;
+                var l = mySel.getLinesLength();
+                for(var i = 0; i < l; i++) {
+                    var line = mySel.lines[i];
+                    ctx.beginPath();
+                    ctx.moveTo(line.start.x, line.start.y);
+                    ctx.lineTo(line.end.x, line.end.y);
+                    ctx.stroke();
+                }
+            } else if(mySel.shapeType == shapeType.POLYGONAL) {
+                var l = mySel.getLinesLength();
                 for(var i = 0; i < l; i++) {
                     var line = mySel.lines[i];
                     ctx.beginPath();
@@ -555,6 +640,18 @@ CanvasState.prototype.drawPolygon = function(currMousePos) {
     }
 }
 
+CanvasState.prototype.drawPolygonal = function(currMousePos) {
+    var polygonal = this.objects[this.getObjectsLength() - 1].shape;
+    if(polygonal.getLinesLength() == 0) {
+        this.drawLine(currMousePos);
+    } else {
+        //var end = polygonal.lines[polygonal.getLinesLength() - 1].end;
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.prevMousePos.x, this.prevMousePos.y);
+        this.ctx.lineTo(currMousePos.x, currMousePos.y);
+    }
+}
+
 CanvasState.prototype.dragShape = function(currMousePos) {
     var v = vector(this.prevMousePos, currMousePos);
     var newPosition;
@@ -568,7 +665,16 @@ CanvasState.prototype.dragShape = function(currMousePos) {
         newPosition = translate(this.selection.end, v);
         this.selection.end = newPosition;
     } else if(this.selection.shapeType == shapeType.POLYGON) {
-        var l = this.selection.lines.length;
+        var l = this.selection.getLinesLength();
+        for(var i = 0; i < l; i++) {
+            var line = this.selection.lines[i];
+            newPosition = translate(line.start, v);
+            line.start = newPosition;
+            newPosition = translate(line.end, v);
+            line.end = newPosition;
+        }
+    } else if(this.selection.shapeType == shapeType.POLYGONAL) {
+        var l = this.selection.getLinesLength();
         for(var i = 0; i < l; i++) {
             var line = this.selection.lines[i];
             newPosition = translate(line.start, v);
@@ -596,7 +702,16 @@ CanvasState.prototype.rotateShape = function(currMousePos) {
         this.selection.start = newStart;
         this.selection.end = newEnd;
     } else if(this.selection.shapeType == shapeType.POLYGON) {
-        var l = this.selection.lines.length;
+        var l = this.selection.getLinesLength();
+        for(var i = 0; i < l; i++) {
+            var line = this.selection.lines[i];
+            var newStart = rotate(line.start, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
+            var newEnd = rotate(line.end, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
+            line.start = newStart;
+            line.end = newEnd;
+        }
+    }else if(this.selection.shapeType == shapeType.POLYGONAL) {
+        var l = this.selection.getLinesLength();
         for(var i = 0; i < l; i++) {
             var line = this.selection.lines[i];
             var newStart = rotate(line.start, this.rotationCenter, Math.cos(-ang), Math.sin(-ang));
@@ -615,7 +730,14 @@ CanvasState.prototype.scaleShape = function(shape) {
             this.selection.end = shape.end;
         } else if(shape.shapeType == shapeType.POLYGON) {
             var polygon = this.selection;
-            var l = polygon.lines.length;
+            var l = polygon.getLinesLength();
+            for(var i = 0; i < l; i++) {
+                polygon.lines[i].start = shape.lines[i].start;
+                polygon.lines[i].end = shape.lines[i].end;
+            }
+        } else if(shape.shapeType == shapeType.POLYGONAL) {
+            var polygon = this.selection;
+            var l = polygon.getLinesLength();
             for(var i = 0; i < l; i++) {
                 polygon.lines[i].start = shape.lines[i].start;
                 polygon.lines[i].end = shape.lines[i].end;
@@ -643,7 +765,16 @@ CanvasState.prototype.mirrorShape = function() {
         this.selection.start = newStart;
         this.selection.end = newEnd;
     } else if(this.selection.shapeType == shapeType.POLYGON) {
-        var l = this.selection.lines.length;
+        var l = this.selection.getLinesLength();
+        for(var i = 0; i < l; i++) {
+            var line = this.selection.lines[i];
+            var newStart = mirror(line.start, this.mline);
+            var newEnd = mirror(line.end, this.mline);
+            line.start = newStart;
+            line.end = newEnd;
+        }
+    } else if(this.selection.shapeType == shapeType.POLYGONAL) {
+        var l = this.selection.getLinesLength();
         for(var i = 0; i < l; i++) {
             var line = this.selection.lines[i];
             var newStart = mirror(line.start, this.mline);
@@ -657,16 +788,16 @@ CanvasState.prototype.mirrorShape = function() {
 CanvasState.prototype.setButton = function(id) {
     this.resetState();
     switch(id) {
-        case "pointbt"   : this.button = 1; break;
-        case "linebt"    : this.button = 2; break;
-        case "polygonbt" : this.button = 3; break;
-        //case "bezierbt"  : this.button = 4; break;
-        case "movebt"    : this.button = 5; break;
-        case "rotatebt"  : this.button = 6; break;
-        case "scalebt"   : this.button = 7; break;
-        case "mirrorbt"  : this.button = 8; break;
-        case "removebt"  : this.button = 9; break;
-        default          : this.button = 0;
+        case "pointbt"     : this.button = 1; break;
+        case "linebt"      : this.button = 2; break;
+        case "polygonbt"   : this.button = 3; break;
+        case "polygonalbt" : this.button = 4; break;
+        case "movebt"      : this.button = 5; break;
+        case "rotatebt"    : this.button = 6; break;
+        case "scalebt"     : this.button = 7; break;
+        case "mirrorbt"    : this.button = 8; break;
+        case "removebt"    : this.button = 9; break;
+        default            : this.button = 0;
     }
 }
 
@@ -677,6 +808,7 @@ CanvasState.prototype.resetState = function() {
     this.ctx.strokeStyle = "#000000";
     this.ctx.lineWidth = 1;
     this.newPolygon = null;
+    this.newPolygonal = null;
     this.mline = null;
     this.selection = null;
     this.startline = true;
@@ -688,7 +820,7 @@ CanvasState.prototype.closePolygon = function() {
     if(this.getObjectsLength() > 0) {
         var polygon = this.objects[this.getObjectsLength() - 1].shape;
         if(polygon.shapeType == shapeType.POLYGON) {
-            var l = polygon.lines.length;
+            var l = polygon.getLinesLength();
             // Caso não seja fechado um polígono com no mínimo 3 linhas, remove-o da lista de objetos
             if(l <= 1) {
                 this.removeObject();
@@ -795,7 +927,7 @@ function scale(shape, sx, sy) {
         end = scaleP(end, sx, sy);
         return new Line(translate(start, mp), translate(end, mp));
     } else if(shape.shapeType == shapeType.POLYGON) {
-        var l = shape.lines.length;
+        var l = shape.getLinesLength();
         var newPolygon = new Polygon();
         var mp = {x: 0, y: 0};
 
@@ -818,6 +950,30 @@ function scale(shape, sx, sy) {
             newPolygon.lines.push(new Line(translate(start, mp), translate(end, mp)));
         }
         return newPolygon;
+    } else if(shape.shapeType == shapeType.POLYGONAL) {
+        var l = shape.getLinesLength();
+        var newPolygonal = new Polygonal();
+        var mp = {x: 0, y: 0};
+
+        // Ponto central ao polígono
+        for(var i = 0; i < l; i++) {
+            var line = shape.lines[i];
+            mp.x += line.end.x / l;
+            mp.y += line.end.y / l;
+        }
+
+        // Escala o polígono
+        for(var i = 0; i < l; i++) {
+            var line = shape.lines[i];
+            var start = line.start, end = line.end;
+            var v = vector(mp, {x: 0, y: 0});
+            start = translate(start, v);
+            end = translate(end, v);
+            start = scaleP(start, sx, sy);
+            end = scaleP(end, sx, sy);
+            newPolygonal.lines.push(new Line(translate(start, mp), translate(end, mp)));
+        }
+        return newPolygonal;
     }
 }
 
