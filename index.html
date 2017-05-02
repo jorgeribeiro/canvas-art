@@ -13,8 +13,8 @@ canvas {
     background-color: #f1f1f1;
 }
 .btn-group .button {
-    background-color: #4CAF50;
-    border: 1px solid green;
+    background-color: #ff5c33;
+    border: 1px;
     color: white;
     padding: 15px 32px;
     text-align: center;
@@ -28,7 +28,7 @@ canvas {
     border-right: none;
 }
 .btn-group .button:hover {
-    background-color: #3e8e41;
+    background-color: #e62e00;
 }
 </style>
 </head>
@@ -39,8 +39,8 @@ canvas {
   <button id="pointbt" class="button" onclick="s.setButton(this.id)">Point</button>
   <button id="linebt" class="button" onclick="s.setButton(this.id)">Line</button>
   <button id="polygonbt" class="button" onclick="s.setButton(this.id)">Polygon</button>
-  <!--<button id="bezierbt" class="button" onclick="s.setButton(this.id)">Bezier</button>-->
-  <button id="movebt" class="button" onclick="s.setButton(this.id)">Move</button>
+  <button id="polygonalbt" class="button" onclick="s.setButton(this.id)">Polygonal</button>
+  <button id="movebt" class="button" onclick="s.setButton(this.id)">Translate</button>
   <button id="rotatebt" class="button" onclick="s.setButton(this.id)">Rotate</button>
   <button id="scalebt" class="button" onclick="s.setButton(this.id)">Scale</button>
   <button id="mirrorbt" class="button" onclick="s.setButton(this.id)">Mirror</button>
@@ -83,7 +83,7 @@ function Polygon() {
     this.shapeType = shapeType.POLYGON;
 }
 
-Polygon.prototype.getLinesLenght = function() {
+Polygon.prototype.getLinesLength = function() {
     var l = this.lines.length;
     return l;
 }
@@ -158,7 +158,7 @@ Object.prototype.pickLine = function(currMousePos) {
 // Determina se a posição do mouse é válida dentro de um polígono
 Object.prototype.pickPolygon = function(currMousePos) {
     var polygon = this.shape;
-    var l = polygon.getLinesLenght();
+    var l = polygon.getLinesLength();
     var ni = 0; // Número de interseções
     var fst = l - 1; // Última aresta
     var lines = polygon.lines;
@@ -235,7 +235,6 @@ function CanvasState(canvas) {
     this.dragging = false; // Flag para quando se está arrastando um objeto
     this.drawing = false; // Flag para quando se está desenhando um objeto
     this.rotating = false; // Flag para quando se está rotacionando um objeto
-    this.scaling = false; // Flag para quando se está escalando um objeto
     this.selection = null; // Objeto selecionado
     this.startline = true; // Usado para desenhar linhas
     this.prevMousePos = {x: 0, y: 0}; // Salva o primeiro click do mouse ao desenhar
@@ -243,8 +242,8 @@ function CanvasState(canvas) {
     this.mouseDownFired = false; // Usado para mover sem desenhar
     this.button = 0; // Botão selecionado
     this.newPolygon = null; // Polígono a ser adicionado
-    this.objectIndex = -1;
-    this.mline = null;
+    this.objectIndex = -1; // Auxilia na remoção
+    this.mline = null; // Auxilia no espelhamento
 
     // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState em uma variável
     var myState = this;
@@ -299,7 +298,7 @@ function CanvasState(canvas) {
                 myState.addObject(myState.newPolygon);
             } else {
                 if((myState.prevMousePos.x != currMousePos.x) && (myState.prevMousePos.y != currMousePos.y)) {
-                    var polygon = myState.objects[myState.getObjectsLenght() - 1].shape;
+                    var polygon = myState.objects[myState.getObjectsLength() - 1].shape;
                     polygon.lines.push(new Line(myState.prevMousePos, currMousePos));
                     myState.prevMousePos = currMousePos;
                 }
@@ -307,7 +306,7 @@ function CanvasState(canvas) {
         } else if(myState.button == 6) {
             var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
-            var l = objects.length;
+            var l = myState.getObjectsLength();
             for(var i = l - 1; i >= 0; i--) {
                 if(objects[i].contains(currMousePos)) {
                     myState.selection = objects[i].shape;
@@ -318,7 +317,7 @@ function CanvasState(canvas) {
         } else if(myState.button == 7) {
             var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
-            var l = objects.length;
+            var l = myState.getObjectsLength();
             for(var i = l - 1; i >= 0; i--) {
                 if(objects[i].contains(currMousePos)) {
                     myState.selection = objects[i].shape;
@@ -344,7 +343,7 @@ function CanvasState(canvas) {
             } else {
                 var currMousePos = myState.getMousePos(e);
                 var objects = myState.objects;
-                var l = objects.length;
+                var l = myState.getObjectsLength();
                 for(var i = l - 1; i >= 0; i--) {
                     if(objects[i].contains(currMousePos)) {
                         myState.selection = objects[i].shape;
@@ -356,7 +355,7 @@ function CanvasState(canvas) {
         } else if(myState.button == 9) {
             var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
-            var l = objects.length;
+            var l = myState.getObjectsLength();
             for(var i = l - 1; i >= 0; i--) {
                 if(objects[i].contains(currMousePos)) {
                     myState.selection = objects[i].shape;
@@ -380,7 +379,7 @@ function CanvasState(canvas) {
             myState.resetState();
         }
         if(myState.button == 9) {
-            if(myState.objectIndex > -1) {
+            if(myState.objectIndex >= 0) {
                 myState.removeObject(myState.objectIndex);
                 myState.objectIndex = -1;
                 myState.valid = false;
@@ -395,7 +394,7 @@ function CanvasState(canvas) {
         if(myState.button == 5) {
             var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
-            var l = objects.length;
+            var l = myState.getObjectsLength();
             for(var i = l - 1; i >= 0; i--) {
                 if(objects[i].contains(currMousePos)) {
                     myState.selection = objects[i].shape;
@@ -492,7 +491,7 @@ CanvasState.prototype.draw = function() {
 
         // Desenha todos os objetos
         this.ctx.setLineDash([0, 0]);
-        var l = this.getObjectsLenght();
+        var l = this.getObjectsLength();
         for(var i = 0; i < l; i++) {
             var object = this.objects[i];
             this.objects[i].draw(ctx);
@@ -544,8 +543,8 @@ CanvasState.prototype.drawLine = function(currMousePos) {
 }
 
 CanvasState.prototype.drawPolygon = function(currMousePos) {
-    var polygon = this.objects[this.getObjectsLenght() - 1].shape;
-    if(polygon.getLinesLenght() == 0) {
+    var polygon = this.objects[this.getObjectsLength() - 1].shape;
+    if(polygon.getLinesLength() == 0) {
         this.drawLine(currMousePos);
     } else {
         var start = polygon.lines[0].start;
@@ -686,8 +685,8 @@ CanvasState.prototype.resetState = function() {
 }
 
 CanvasState.prototype.closePolygon = function() {
-    if(this.getObjectsLenght() > 0) {
-        var polygon = this.objects[this.getObjectsLenght() - 1].shape;
+    if(this.getObjectsLength() > 0) {
+        var polygon = this.objects[this.getObjectsLength() - 1].shape;
         if(polygon.shapeType == shapeType.POLYGON) {
             var l = polygon.lines.length;
             // Caso não seja fechado um polígono com no mínimo 3 linhas, remove-o da lista de objetos
@@ -705,7 +704,7 @@ CanvasState.prototype.closePolygon = function() {
 
 // Método de auxílio
 CanvasState.prototype.isMovable = function(currMousePos) {
-    var l = this.getObjectsLenght();
+    var l = this.getObjectsLength();
     for(var i = 0; i < l; i++) {
         var object = this.objects[i];
         var movable = object.contains(currMousePos);
@@ -714,7 +713,7 @@ CanvasState.prototype.isMovable = function(currMousePos) {
     document.getElementById("status").innerHTML = "Status: " + movable;
 }
 
-CanvasState.prototype.getObjectsLenght = function() {
+CanvasState.prototype.getObjectsLength = function() {
     var l = this.objects.length;
     return l;
 }
@@ -905,7 +904,6 @@ function mirror(shape, rline) {
 
     return new Point(p.y, p.y);
 }
-*/
 
 // Espelha o ponto p em relação ao eixo x
 function mirrorP(p) {
@@ -926,6 +924,7 @@ function mirrorP(p) {
 
     return pMirrored;
 }
+*/
 
 function midPoint(p1, p2) {
     return {x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2};
@@ -939,17 +938,6 @@ function angle(v1, v2) {
     var vp = (v1.x * v2.x) + (v1.y * v2.y);
     var vm = (Math.sqrt(Math.pow(v1.x, 2) + Math.pow(v1.y, 2))) * (Math.sqrt(Math.pow(v2.x, 2) + Math.pow(v2.y, 2)));
     return Math.acos(vp / vm);
-}
-
-function test() {
-    var l = new Line({x: 1, y: 1}, {x: 50, y: 50});
-    var start = l.start;
-    var end = l.end;
-    console.log(l.start.x + " " + l.start.y);
-    console.log(start.x + " " + start.y);
-    l.start = {x: 2, y: 2};
-    console.log(l.start.x + " " + l.start.y);
-    console.log(start.x + " " + start.y);
 }
 
 </script>
