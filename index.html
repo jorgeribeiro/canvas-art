@@ -491,7 +491,7 @@ CanvasState.prototype.draw = function() {
         if(this.drawing) ctx.stroke(); // Evita que desenhe a mesma linha duas vezes
 
         // Desenha todos os objetos
-        //var l = this.objects.length;
+        this.ctx.setLineDash([0, 0]);
         var l = this.getObjectsLenght();
         for(var i = 0; i < l; i++) {
             var object = this.objects[i];
@@ -626,6 +626,7 @@ CanvasState.prototype.scaleShape = function(shape) {
 }
 
 CanvasState.prototype.drawMirrorLine = function(currMousePos) {
+    this.ctx.setLineDash([5, 3]);
     this.ctx.strokeStyle = "#000000";
     this.ctx.lineWidth = 1;
     this.drawLine(currMousePos);
