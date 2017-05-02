@@ -244,6 +244,7 @@ function CanvasState(canvas) {
     this.button = 0; // Botão selecionado
     this.newPolygon = null; // Polígono a ser adicionado
     this.objectIndex = -1;
+    this.mline = null;
 
     // Dentro dos eventos do mouse, o "this" corresponde ao canvas, por isso precisa-se guardar o CanvasState em uma variável
     var myState = this;
@@ -255,6 +256,8 @@ function CanvasState(canvas) {
                 myState.drawLine(currMousePos);
             } else if(myState.button == 3) {
                 myState.drawPolygon(currMousePos);
+            } else if(myState.button == 8) {
+                myState.drawMirrorLine(currMousePos);
             }
             myState.valid = false;
         } else if(myState.dragging) {
@@ -323,6 +326,33 @@ function CanvasState(canvas) {
                     return;
                 }
             }
+        } else if(myState.button == 8) {
+            if(myState.selection != null) {
+                if(myState.startline) { // Primeiro click
+                    myState.startline = false; 
+                    myState.drawing = true;
+                    myState.prevMousePos = currMousePos;
+                } else {                // Segundo click
+                    myState.mline = new Line(myState.prevMousePos, currMousePos);
+                    myState.mirrorShape();
+                    myState.startline = true; 
+                    myState.drawing = false;
+                    myState.selection = null;
+                    myState.valid = false;
+                }
+                return;
+            } else {
+                var currMousePos = myState.getMousePos(e);
+                var objects = myState.objects;
+                var l = objects.length;
+                for(var i = l - 1; i >= 0; i--) {
+                    if(objects[i].contains(currMousePos)) {
+                        myState.selection = objects[i].shape;
+                        myState.valid = false;
+                        return;
+                    }
+                }
+            }
         } else if(myState.button == 9) {
             var currMousePos = myState.getMousePos(e);
             var objects = myState.objects;
@@ -356,7 +386,6 @@ function CanvasState(canvas) {
                 myState.valid = false;
             }
         }
-        test();
         return false;
     });
 
@@ -383,6 +412,11 @@ function CanvasState(canvas) {
                 myState.prevMousePos = currMousePos;
                 myState.rotating = true;
                 myState.valid = false;
+                return;
+            }
+        } else if(myState.button == 8) {
+            if(myState.selection != null) {
+                myState.mouseDownFired = false;
                 return;
             }
         }
@@ -576,15 +610,46 @@ CanvasState.prototype.rotateShape = function(currMousePos) {
 }
 
 CanvasState.prototype.scaleShape = function(shape) {
-    if(shape.shapeType == shapeType.LINE) {
-        this.selection.start = shape.start;
-        this.selection.end = shape.end;
-    } else if(shape.shapeType == shapeType.POLYGON) {
-        var polygon = this.selection;
-        var l = polygon.lines.length;
+    if(shape) {
+        if(shape.shapeType == shapeType.LINE) {
+            this.selection.start = shape.start;
+            this.selection.end = shape.end;
+        } else if(shape.shapeType == shapeType.POLYGON) {
+            var polygon = this.selection;
+            var l = polygon.lines.length;
+            for(var i = 0; i < l; i++) {
+                polygon.lines[i].start = shape.lines[i].start;
+                polygon.lines[i].end = shape.lines[i].end;
+            }
+        }
+    }     
+}
+
+CanvasState.prototype.drawMirrorLine = function(currMousePos) {
+    this.ctx.strokeStyle = "#000000";
+    this.ctx.lineWidth = 1;
+    this.drawLine(currMousePos);
+    this.valid = false;
+}
+
+CanvasState.prototype.mirrorShape = function() {
+    if(this.selection.shapeType == shapeType.POINT) {
+        var newPosition = mirror(this.selection, this.mline);
+        this.selection.x = newPosition.x;
+        this.selection.y = newPosition.y;
+    } else if(this.selection.shapeType == shapeType.LINE) {
+        var newStart = mirror(this.selection.start, this.mline);
+        var newEnd = mirror(this.selection.end, this.mline);
+        this.selection.start = newStart;
+        this.selection.end = newEnd;
+    } else if(this.selection.shapeType == shapeType.POLYGON) {
+        var l = this.selection.lines.length;
         for(var i = 0; i < l; i++) {
-            polygon.lines[i].start = shape.lines[i].start;
-            polygon.lines[i].end = shape.lines[i].end;
+            var line = this.selection.lines[i];
+            var newStart = mirror(line.start, this.mline);
+            var newEnd = mirror(line.end, this.mline);
+            line.start = newStart;
+            line.end = newEnd;
         }
     }
 }
@@ -612,6 +677,7 @@ CanvasState.prototype.resetState = function() {
     this.ctx.strokeStyle = "#000000";
     this.ctx.lineWidth = 1;
     this.newPolygon = null;
+    this.mline = null;
     this.selection = null;
     this.startline = true;
     this.drawing = false;
@@ -638,7 +704,7 @@ CanvasState.prototype.closePolygon = function() {
 
 // Método de auxílio
 CanvasState.prototype.isMovable = function(currMousePos) {
-    var l = this.objects.length;
+    var l = this.getObjectsLenght();
     for(var i = 0; i < l; i++) {
         var object = this.objects[i];
         var movable = object.contains(currMousePos);
@@ -775,6 +841,22 @@ function scaleP(p, sx, sy) {
     return pScaled;
 }
 
+function mirror(p, mline) {
+    var start = mline.start;
+    var end = mline.end;
+    var dx, dy, a, b, x, y;
+
+    dx = end.x - start.x;
+    dy = end.y - start.y;
+    a = (dx * dx - dy * dy) / (dx * dx + dy * dy);
+    b = 2 * dx * dy / (dx * dx + dy * dy);
+    x = Math.round(a * (p.x - start.x) + b * (p.y - start.y) + start.x); 
+    y = Math.round(b * (p.x - start.x) - a * (p.y - start.y) + start.y);
+
+    return {x: x, y: y};
+}
+
+/*
 function mirror(shape, rline) {
     // Steps:
     // 1. Translada linha e ponto para o eixo x, até o extremo da linha com menor y ter x = 0
@@ -788,40 +870,41 @@ function mirror(shape, rline) {
     // Step 1:
     var pt = {x: 0, y: 0}; // Ponto de translação
     var po = {x: 0, y: 0}; // Ponto oposto ao de translação
+    var p = {x: shape.x, y: shape.y};
+
     if(rline.start.y == rline.end.y || rline.start.y < rline.end.y) {
         pt = rline.start;
         po = rline.end;
-    }
-    else {
+    } else {
         pt = rline.end;
         po = rline.start;
     }
 
-    var v = vector(pt, {x: 0, y: 0});
+    var v = vector(pt, {x: pt.x, y: 0});
     pt = translate(pt, v);
     po = translate(po, v);
-    shape = translate(shape, v);
-
+    p = translate(p, v);
     // Step 2:
-    var ang = angle({x: po.x - pt.x, y: po.y - pt.y}, {x: po.x - pt.x, y: 0});
+    var ang = angle({x: po.x - pt.x, y: po.y - pt.y}, {x: pt.x - po.x, y: 0});
     po = rotate(po, pt, Math.cos(-ang), Math.sin(-ang));
-    shape = rotate(shape, pt, Math.cos(-ang), Math.sin(-ang));
+    p = rotate(p, pt, Math.cos(-ang), Math.sin(-ang));
 
     // Step 3:
-    shape = mirrorP(shape);
+    p = mirrorP(p);
 
     //Step 4:
-    po = rotate(po, pt, Math.cos(ang), Math.sin(ang));
-    shape = rotate(shape, pt, Math.cos(ang), Math.sin(ang));
+    //po = rotate(po, pt, Math.cos(-ang), -Math.sin(-ang));
+    p = rotate(p, pt, -Math.cos(-ang), Math.sin(-ang));
 
     // Step 5:
     v = {x: -v.x, y: -v.y};
-    pt = translate(pt, v);
-    po = translate(po, v);
-    shape = translate(shape, v);
+    //pt = translate(pt, v);
+    //po = translate(po, v);
+    p = translate(p, v);
 
-    return shape;
+    return new Point(p.y, p.y);
 }
+*/
 
 // Espelha o ponto p em relação ao eixo x
 function mirrorP(p) {
@@ -853,7 +936,7 @@ function midPoint(p1, p2) {
 //                   |v1| * |v2|
 function angle(v1, v2) {
     var vp = (v1.x * v2.x) + (v1.y * v2.y);
-    var vm = (Math.sqrt(Math.pow(v1.x, 2) + Math.pow(v1.y, 2))) * (Math.sqrt(Math.pow(v2.x, 2) + Math.pow(v2.y, 2)))
+    var vm = (Math.sqrt(Math.pow(v1.x, 2) + Math.pow(v1.y, 2))) * (Math.sqrt(Math.pow(v2.x, 2) + Math.pow(v2.y, 2)));
     return Math.acos(vp / vm);
 }
 
