@@ -955,14 +955,28 @@ function scale(shape, sx, sy) {
         var newPolygonal = new Polygonal();
         var mp = {x: 0, y: 0};
 
-        // Ponto central ao polígono
+        // Se a poligonal possui apenas uma linha
+        if(l == 1) {
+            var line = shape.lines[0];
+            var start = line.start, end = line.end;
+            mp = midPoint(start, end);
+            var v = vector(mp, {x: 0, y: 0});
+            start = translate(start, v);
+            end = translate(end, v);
+            start = scaleP(start, sx, sy);
+            end = scaleP(end, sx, sy);
+            newPolygonal.lines.push(new Line(translate(start, mp), translate(end, mp)));
+            return newPolygonal;
+        }
+
+        // Ponto central a poligonal
         for(var i = 0; i < l; i++) {
             var line = shape.lines[i];
             mp.x += line.end.x / l;
             mp.y += line.end.y / l;
         }
 
-        // Escala o polígono
+        // Escala a poligonal
         for(var i = 0; i < l; i++) {
             var line = shape.lines[i];
             var start = line.start, end = line.end;
