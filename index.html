@@ -40,7 +40,7 @@ canvas {
   <button id="linebt" class="button" onclick="s.setButton(this.id)">Line</button>
   <button id="polygonbt" class="button" onclick="s.setButton(this.id)">Polygon</button>
   <button id="polygonalbt" class="button" onclick="s.setButton(this.id)">Polygonal</button>
-  <button id="movebt" class="button" onclick="s.setButton(this.id)">Translate</button>
+  <button id="translatebt" class="button" onclick="s.setButton(this.id)">Translate</button>
   <button id="rotatebt" class="button" onclick="s.setButton(this.id)">Rotate</button>
   <button id="scalebt" class="button" onclick="s.setButton(this.id)">Scale</button>
   <button id="mirrorbt" class="button" onclick="s.setButton(this.id)">Mirror</button>
@@ -285,7 +285,7 @@ Object.prototype.draw = function(ctx) {
 
 // CanvasState toma conta do estado do canvas
 // Nele encontram-se os métodos para eventos do mouse, e também métodos de update no canvas, no caso de alguma movimentação ou transformação em algum objeto presente nele
-// Os objetos (linhas, polígonos e poligonais) são salvos na lista shapes[]
+// Os objetos (pontos, linhas, polígonos e poligonais) são salvos na lista objects[]
 function CanvasState(canvas) {
     // Atributos
     this.canvas = canvas;
@@ -792,7 +792,7 @@ CanvasState.prototype.setButton = function(id) {
         case "linebt"      : this.button = 2; break;
         case "polygonbt"   : this.button = 3; break;
         case "polygonalbt" : this.button = 4; break;
-        case "movebt"      : this.button = 5; break;
+        case "translatebt"      : this.button = 5; break;
         case "rotatebt"    : this.button = 6; break;
         case "scalebt"     : this.button = 7; break;
         case "mirrorbt"    : this.button = 8; break;
