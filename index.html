@@ -165,7 +165,7 @@ Object.prototype.pickLine = function(currMousePos) {
         else if(cod0[1]) y0 += (xmax - x0) * (y1 - y0) / (x1 - x0), x0 = xmax;
         else if(cod0[2]) x0 += (ymin - y0) * (x1 - x0) / (y1 - y0), y0 = ymin;
         else if(cod0[3]) x0 += (ymax - y0) * (x1 - x0) / (y1 - y0), y0 = ymax;
-           else return true;
+        else return true;
     } while(true);
     return false;
 }
@@ -792,7 +792,7 @@ CanvasState.prototype.setButton = function(id) {
         case "linebt"      : this.button = 2; break;
         case "polygonbt"   : this.button = 3; break;
         case "polygonalbt" : this.button = 4; break;
-        case "translatebt"      : this.button = 5; break;
+        case "translatebt" : this.button = 5; break;
         case "rotatebt"    : this.button = 6; break;
         case "scalebt"     : this.button = 7; break;
         case "mirrorbt"    : this.button = 8; break;
