@@ -810,7 +810,6 @@ CanvasState.prototype.mirrorShape = function() {
 }
 
 CanvasState.prototype.executeConvexHull = function() {
-    //return {x: p2.x - p1.x, y: p2.y - p1.y};
     var points = [];
     var l = this.getObjectsLength();
     for(var i = 0; i < l; i++) {
@@ -1152,6 +1151,7 @@ function mirror(shape, rline) {
     //pt = translate(pt, v);
     //po = translate(po, v);
     p = translate(p, v);
+
 
     return new Point(p.y, p.y);
 }
