@@ -45,9 +45,10 @@ canvas {
   <button id="scalebt" class="button" onclick="s.setButton(this.id)">Scale</button>
   <button id="mirrorbt" class="button" onclick="s.setButton(this.id)">Mirror</button>
   <button id="removebt" class="button" onclick="s.setButton(this.id)">Remove</button>
+  <button id="convexhullbt" class="button" onclick="s.setButton(this.id)">Convex Hull</button>
 </div>
 <br><br><br><br>
-<canvas id="myCanvas" width="1050" height="550">
+<canvas id="myCanvas" width="1200" height="550">
 </body>
 
 <script>
@@ -57,6 +58,7 @@ var shapeType = {
     LINE: 2,
     POLYGON: 3,
     POLYGONAL: 4,
+    CONVEX: 5,
 };
 
 // Um ponto contém a sua coordenada x, y
@@ -97,6 +99,18 @@ function Polygonal() {
 }
 
 Polygonal.prototype.getLinesLength = function() {
+    var l = this.lines.length;
+    return l;
+}
+
+function ConvexHull() {
+    this.lines = [];
+    this.stroke = '#0000ff'
+    this.width = 2;
+    this.shapeType = shapeType.CONVEX;
+}
+
+ConvexHull.prototype.getLinesLength = function() {
     var l = this.lines.length;
     return l;
 }
@@ -270,6 +284,17 @@ Object.prototype.draw = function(ctx) {
             ctx.stroke();
         }
     } else if(this.shapeType == shapeType.POLYGONAL) {
+        var l = shape.getLinesLength();
+        for(var i = 0; i < l; i++) {
+            var line = shape.lines[i];
+            ctx.beginPath();
+            ctx.moveTo(line.start.x, line.start.y);
+            ctx.lineTo(line.end.x, line.end.y);
+            ctx.strokeStyle = shape.stroke;
+            ctx.lineWidth = shape.width;
+            ctx.stroke();
+        }
+    } else if(this.shapeType == shapeType.CONVEX) {
         var l = shape.getLinesLength();
         for(var i = 0; i < l; i++) {
             var line = shape.lines[i];
@@ -645,7 +670,6 @@ CanvasState.prototype.drawPolygonal = function(currMousePos) {
     if(polygonal.getLinesLength() == 0) {
         this.drawLine(currMousePos);
     } else {
-        //var end = polygonal.lines[polygonal.getLinesLength() - 1].end;
         this.ctx.beginPath();
         this.ctx.moveTo(this.prevMousePos.x, this.prevMousePos.y);
         this.ctx.lineTo(currMousePos.x, currMousePos.y);
@@ -785,6 +809,46 @@ CanvasState.prototype.mirrorShape = function() {
     }
 }
 
+CanvasState.prototype.executeConvexHull = function() {
+    //return {x: p2.x - p1.x, y: p2.y - p1.y};
+    var points = [];
+    var l = this.getObjectsLength();
+    for(var i = 0; i < l; i++) {
+        var shape = this.objects[i].shape;
+        if(shape.shapeType == shapeType.POINT) {
+            points.push({x: shape.x, y: shape.y});
+        } else if(shape.shapeType == shapeType.LINE) {
+            points.push(shape.start);
+            points.push(shape.end);
+        } else if(shape.shapeType == shapeType.POLYGON) {
+            var pl = shape.getLinesLength();
+            for(var j = 0; j < pl; j++) {
+                points.push(shape.lines[j].start);
+            }
+        } else if(shape.shapeType == shapeType.POLYGONAL) {
+            var pl = shape.getLinesLength();
+            for(var j = 0; j < pl; j++) {
+                points.push(shape.lines[j].start);
+            }
+            points.push(shape.lines[j-1].end);
+        }
+    }
+    
+    if(points.length >= 3) {
+        var hull = convexHull(points);
+        var l = hull.length;
+        var ch = new ConvexHull();
+        for(var i = 0; i < l; i++) {
+            if(i == l-1) {
+                ch.lines.push(new Line(hull[i], hull[0]));
+            } else {
+                ch.lines.push(new Line(hull[i], hull[i+1]));
+            }
+        }
+        this.addObject(ch);
+    }    
+}
+
 CanvasState.prototype.setButton = function(id) {
     this.resetState();
     switch(id) {
@@ -797,6 +861,9 @@ CanvasState.prototype.setButton = function(id) {
         case "scalebt"     : this.button = 7; break;
         case "mirrorbt"    : this.button = 8; break;
         case "removebt"    : this.button = 9; break;
+        case "convexhullbt": this.button = 10; 
+                             this.executeConvexHull(); 
+                             break;
         default            : this.button = 0;
     }
 }
@@ -804,6 +871,7 @@ CanvasState.prototype.setButton = function(id) {
 // Reinicia várias opções importantes ao canvas para evitar conflitos e bugs
 CanvasState.prototype.resetState = function() {
     this.closePolygon();
+    this.removeConvex();
     this.ctx.beginPath();
     this.ctx.strokeStyle = "#000000";
     this.ctx.lineWidth = 1;
@@ -823,13 +891,26 @@ CanvasState.prototype.closePolygon = function() {
             var l = polygon.getLinesLength();
             // Caso não seja fechado um polígono com no mínimo 3 linhas, remove-o da lista de objetos
             if(l <= 1) {
-                this.removeObject();
+                this.removeObject(this.getObjectsLength() - 1);
                 return;
             }
             // Caso contrário, fecha-o unindo o ponto inicial da primeira aresta com o ponto final da última aresta
             var lineStart = polygon.lines[0];
             var lineEnd = polygon.lines[l - 1];
-            polygon.lines.push(new Line(lineEnd.end, lineStart.start));
+            // Testa se o polígono já está fechado
+            if(lineStart.start.x != lineEnd.end.x && lineStart.start.y != lineEnd.end.y) {
+                polygon.lines.push(new Line(lineEnd.end, lineStart.start));
+            }
+        }
+    }
+}
+
+// Remove convex hull desenhado no canvas
+CanvasState.prototype.removeConvex = function() {
+    if(this.getObjectsLength() > 0) {
+        var shape = this.objects[this.getObjectsLength() - 1].shape;
+        if(shape.shapeType == shapeType.CONVEX) {
+            this.removeObject(this.getObjectsLength() - 1);
         }
     }
 }
@@ -1108,6 +1189,31 @@ function angle(v1, v2) {
     var vp = (v1.x * v2.x) + (v1.y * v2.y);
     var vm = (Math.sqrt(Math.pow(v1.x, 2) + Math.pow(v1.y, 2))) * (Math.sqrt(Math.pow(v2.x, 2) + Math.pow(v2.y, 2)));
     return Math.acos(vp / vm);
+}
+
+function convexHull(points) {
+    points.sort(function (a, b) {
+        return a.x != b.x ? a.x - b.x : a.y - b.y;
+    });
+
+    var n = points.length;
+    var hull = [];
+
+    for (var i = 0; i < 2 * n; i++) {
+        var j = i < n ? i : 2 * n - 1 - i;
+        while (hull.length >= 2 && removeMiddle(hull[hull.length - 2], hull[hull.length - 1], points[j]))
+            hull.pop();
+        hull.push(points[j]);
+    }
+
+    hull.pop();
+    return hull;
+}
+
+function removeMiddle(a, b, c) {
+    var cross = (a.x - b.x) * (c.y - b.y) - (a.y - b.y) * (c.x - b.x);
+    var dot = (a.x - b.x) * (c.x - b.x) + (a.y - b.y) * (c.y - b.y);
+    return cross < 0 || cross == 0 && dot <= 0;
 }
 
 </script>
