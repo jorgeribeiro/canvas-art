@@ -7,6 +7,7 @@ It is a paint-similar application, in which the user can draw, create, move, rot
 Access at https://jorgimello.github.io/
 
 How to use:
+
 Drawing:
   - Point: by clicking on the canvas
   - Line: set the start and then the end of the line
