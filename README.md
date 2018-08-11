@@ -1,4 +1,4 @@
-# README
+# Javascript PAINT
 
 HTML5 canvas project for Graphic Computing class
 
