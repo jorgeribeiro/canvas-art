@@ -4,8 +4,6 @@ HTML5 canvas project for Graphic Computing class
 
 It is a paint-similar application, in which the user can draw, create, move, rotate, transform, delete lines and polygons and polygonals.
 
-
-
 ## How to use:
 
 Drawing:
@@ -21,5 +19,3 @@ Interacting:
   - Mirror: first select the object; draw a line that will simulate the mirror. The size of the line doesn't matter, just the position
   - Remove: first select the object; right button to remove
   - Convex hull: having at least three points in the canvas (lines have 2 points, polygons and polygonals have n points), clicking in the Convex hull button to generate it around the points
-  
-![alt text](https:/
