@@ -6,7 +6,7 @@ It is a paint-similar application, in which the user can draw, create, move, rot
 
 
 
-How to use:
+## How to use:
 
 Drawing:
   - Point: by clicking on the canvas
