@@ -22,4 +22,4 @@ Interacting:
   - Remove: first select the object; right button to remove
   - Convex hull: having at least three points in the canvas (lines have 2 points, polygons and polygonals have n points), clicking in the Convex hull button to generate it around the points
   
-![alt text](https://raw.githubusercontent.com/jorgimello/jorgimello.github.io/master/demo.png)
+![alt text](https://raw.githubusercontent.com/jorgimello/jorgimello.github.io/master/
